@@ -12,10 +12,13 @@ export interface ItemFormData {
   base_price: string;
   start_date: string;
   end_date: string;
+  is_active: boolean | null;
 }
 
 export interface ItemFormErrors {
   name?: string;
   base_price?: string;
   start_date?: string;
+  end_date?: string;
+  status?: string;
 }

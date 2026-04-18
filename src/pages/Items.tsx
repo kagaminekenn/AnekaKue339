@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../utils/supabase';
-import { Plus, X, Check } from 'lucide-react';
+import { Plus, X, Check, Pencil } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import type { Item, ItemFormErrors } from '../types/items';
 import {
@@ -10,8 +10,12 @@ import {
   formatPriceInput,
   parsePriceInput,
   validateItemForm,
-  isDateRangeInvalid
-} from '../utils/items';
+  validateEditItemForm,
+  isDateRangeInvalid,
+  getNextDateValue
+} from '../utils/helper';
+
+type ModalMode = 'add' | 'edit';
 
 const Items = () => {
   const [items, setItems] = useState<Item[]>([]);
@@ -19,6 +23,8 @@ const Items = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<ModalMode>('add');
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [formData, setFormData] = useState(DEFAULT_ITEM_FORM_DATA);
   const [errors, setErrors] = useState<ItemFormErrors>({});
   const startDateRef = useRef<HTMLInputElement | null>(null);
@@ -57,7 +63,45 @@ const Items = () => {
     }
   };
 
+  const handleStatusToggle = () => {
+    setFormData(prev => ({
+      ...prev,
+      is_active: !(prev.is_active ?? false)
+    }));
+
+    if (errors.status) {
+      setErrors(prev => ({ ...prev, status: undefined }));
+    }
+  };
+
   const dateRangeInvalid = isDateRangeInvalid(formData.start_date, formData.end_date);
+  const editDateRangeInvalid =
+    modalMode === 'edit' &&
+    Boolean(formData.start_date) &&
+    Boolean(formData.end_date) &&
+    formData.end_date <= formData.start_date;
+
+  const openAddModal = () => {
+    setModalMode('add');
+    setEditingItemId(null);
+    setFormData(DEFAULT_ITEM_FORM_DATA);
+    setErrors({});
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (item: Item) => {
+    setModalMode('edit');
+    setEditingItemId(item.id);
+    setFormData({
+      name: item.name,
+      base_price: formatPriceInput(String(item.base_price)),
+      start_date: item.start_date,
+      end_date: item.end_date ?? '',
+      is_active: item.is_active
+    });
+    setErrors({});
+    setIsModalOpen(true);
+  };
 
   const fetchItems = useCallback(async (page: number) => {
     setLoading(true);
@@ -89,53 +133,67 @@ const Items = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const nextErrors = validateItemForm(formData);
+    const nextErrors = modalMode === 'edit'
+      ? validateEditItemForm(formData)
+      : validateItemForm(formData);
+
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       return;
     }
 
-    if (dateRangeInvalid) {
+    if ((modalMode === 'add' && dateRangeInvalid) || editDateRangeInvalid) {
       alert('Start Date cannot be greater than End Date.');
       return;
     }
 
     try {
-      const dataToSubmit = {
-        name: formData.name,
-        base_price: parsePriceInput(formData.base_price),
-        start_date: formData.start_date,
-        end_date: formData.end_date || null,
-        is_active: true
-      };
-
-      const { error } = await supabase
-        .from('items')
-        .insert([dataToSubmit])
-        .select();
+      const { error } = modalMode === 'edit'
+        ? await supabase
+            .from('items')
+            .update({
+              end_date: formData.end_date,
+              is_active: formData.is_active
+            })
+            .eq('id', editingItemId)
+            .select()
+        : await supabase
+            .from('items')
+            .insert([{
+              name: formData.name,
+              base_price: parsePriceInput(formData.base_price),
+              start_date: formData.start_date,
+              end_date: formData.end_date || null,
+              is_active: true
+            }])
+            .select();
 
       if (error) {
-        console.error('Error adding item:', error);
-        alert('Error adding item: ' + error.message);
+        console.error(`Error ${modalMode === 'edit' ? 'updating' : 'adding'} item:`, error);
+        alert(`Error ${modalMode === 'edit' ? 'updating' : 'adding'} item: ` + error.message);
       } else {
         setIsModalOpen(false);
+        setModalMode('add');
+        setEditingItemId(null);
         setFormData(DEFAULT_ITEM_FORM_DATA);
         setErrors({});
 
-        if (currentPage === 1) {
-          await fetchItems(1);
-        } else {
+        if (modalMode === 'add' && currentPage !== 1) {
           setCurrentPage(1);
+        } else {
+          await fetchItems(currentPage);
         }
       }
     } catch (error) {
-      console.error('Error adding item:', error);
-      alert('Error adding item');
+      console.error(`Error ${modalMode === 'edit' ? 'updating' : 'adding'} item:`, error);
+      alert(`Error ${modalMode === 'edit' ? 'updating' : 'adding'} item`);
     }
   };
 
   const handleCancel = () => {
     setIsModalOpen(false);
+    setModalMode('add');
+    setEditingItemId(null);
     setFormData(DEFAULT_ITEM_FORM_DATA);
     setErrors({});
   };
@@ -160,7 +218,7 @@ const Items = () => {
           <h1 className="text-3xl font-bold text-slate-900">Items</h1>
         </div>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={openAddModal}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors cursor-pointer hover:bg-blue-700 sm:w-auto"
         >
           <Plus size={16} />
@@ -180,6 +238,7 @@ const Items = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Start Date</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">End Date</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Action</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">
@@ -193,6 +252,17 @@ const Items = () => {
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${item.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                       {item.is_active ? 'Active' : 'Inactive'}
                     </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(item)}
+                      title="Edit item"
+                      aria-label={`Edit ${item.name}`}
+                      className="inline-flex h-9 w-9 items-center justify-center cursor-pointer rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -217,7 +287,9 @@ const Items = () => {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
           <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg border border-slate-200 bg-white p-5 shadow-2xl sm:mx-4 sm:p-6">
-            <h2 className="text-xl font-bold text-slate-900 mb-4">Add New Item</h2>
+            <h2 className="text-xl font-bold text-slate-900 mb-4">
+              {modalMode === 'edit' ? 'Edit Item' : 'Add New Item'}
+            </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
@@ -228,11 +300,12 @@ const Items = () => {
                   placeholder='Lemper Ayam'
                   value={formData.name}
                   onChange={handleInputChange}
+                  disabled={modalMode === 'edit'}
                   className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 transition-all ${
                     errors.name
                       ? 'border-red-500 ring-2 ring-red-200 animate-pulse'
                       : 'border-slate-300 focus:ring-blue-500'
-                  }`}
+                  } ${modalMode === 'edit' ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                 />
                 {errors.name && (
                   <p className="mt-1 text-sm text-red-600 animate-pulse">{errors.name}</p>
@@ -245,13 +318,15 @@ const Items = () => {
                   <input
                     type="text"
                     name="base_price"
+                    autoComplete='off'
                     value={formData.base_price}
                     onChange={handlePriceChange}
+                    disabled={modalMode === 'edit'}
                     className={`w-full pl-10 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 transition-all ${
                       errors.base_price
                         ? 'border-red-500 ring-2 ring-red-200 animate-pulse'
                         : 'border-slate-300 focus:ring-blue-500'
-                    }`}
+                    } ${modalMode === 'edit' ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                     placeholder="0"
                   />
                 </div>
@@ -264,7 +339,7 @@ const Items = () => {
                 <div
                   className="relative"
                   onClick={() => {
-                    if (startDateRef.current) {
+                    if (modalMode === 'add' && startDateRef.current) {
                       startDateRef.current.showPicker?.();
                       startDateRef.current.focus();
                     }
@@ -279,24 +354,29 @@ const Items = () => {
                       errors.start_date
                         ? 'border-red-500 ring-2 ring-red-200 animate-pulse'
                         : 'border-slate-300 focus:ring-blue-500'
-                    }`}
+                    } ${modalMode === 'edit' ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                   />
-                  <input
-                    ref={startDateRef}
-                    type="date"
-                    name="start_date"
-                    value={formData.start_date}
-                    onChange={handleDateChange}
-                    max={formData.end_date || undefined}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
+                  {modalMode === 'add' && (
+                    <input
+                      ref={startDateRef}
+                      type="date"
+                      name="start_date"
+                      autoComplete='off'
+                      value={formData.start_date}
+                      onChange={handleDateChange}
+                      max={formData.end_date || undefined}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                  )}
                 </div>
                 {errors.start_date && (
                   <p className="mt-1 text-sm text-red-600 animate-pulse">{errors.start_date}</p>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">End Date (Optional)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  End Date {modalMode === 'edit' ? '' : '(Optional)'}
+                </label>
                 <div
                   className="relative"
                   onClick={() => {
@@ -311,22 +391,58 @@ const Items = () => {
                     value={formData.end_date ? formatDisplayDate(formData.end_date) : ''}
                     readOnly
                     placeholder="01 January 2026"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-md bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                    className={`w-full px-3 py-2 border rounded-md bg-white text-slate-900 focus:outline-none focus:ring-2 cursor-pointer transition-all ${
+                      errors.end_date
+                        ? 'border-red-500 ring-2 ring-red-200 animate-pulse'
+                        : 'border-slate-300 focus:ring-blue-500'
+                    }`}
                   />
                   <input
                     ref={endDateRef}
                     type="date"
                     name="end_date"
+                    autoComplete="off"
                     value={formData.end_date}
                     onChange={handleDateChange}
-                    min={formData.start_date || undefined}
+                    min={modalMode === 'edit' ? getNextDateValue(formData.start_date) || undefined : formData.start_date || undefined}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
                 </div>
+                {errors.end_date && (
+                  <p className="mt-1 text-sm text-red-600 animate-pulse">{errors.end_date}</p>
+                )}
               </div>
-              {dateRangeInvalid && (
+              {modalMode === 'edit' && (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">Status</label>
+                  <button
+                    type="button"
+                    onClick={handleStatusToggle}
+                    className={`flex w-full items-center justify-between rounded-md border px-3 py-2 transition-colors ${
+                      errors.status
+                        ? 'border-red-500 ring-2 ring-red-200 animate-pulse'
+                        : 'border-slate-300 hover:bg-slate-50'
+                    }`}
+                    role="switch"
+                    aria-checked={Boolean(formData.is_active)}
+                  >
+                    <span className="text-sm font-medium text-slate-700">
+                      {formData.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                    <span className={`relative h-6 w-11 rounded-full transition-colors ${formData.is_active ? 'bg-emerald-600' : 'bg-slate-300'}`}>
+                      <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${formData.is_active ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </span>
+                  </button>
+                  {errors.status && (
+                    <p className="mt-1 text-sm text-red-600 animate-pulse">{errors.status}</p>
+                  )}
+                </div>
+              )}
+              {(modalMode === 'add' ? dateRangeInvalid : editDateRangeInvalid) && (
                 <p className="text-sm text-red-600">
-                  Start Date cannot be greater than End Date.
+                  {modalMode === 'edit'
+                    ? 'End Date must be later than Start Date.'
+                    : 'Start Date cannot be greater than End Date.'}
                 </p>
               )}
               <div className="flex justify-end space-x-3 pt-4">
@@ -340,11 +456,11 @@ const Items = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={dateRangeInvalid}
+                  disabled={modalMode === 'add' ? dateRangeInvalid : editDateRangeInvalid}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white rounded-md font-medium transition-colors flex items-center gap-2 cursor-pointer"
                 >
                   <Check size={16} />
-                  Submit
+                  {modalMode === 'edit' ? 'Update' : 'Submit'}
                 </button>
               </div>
             </form>
