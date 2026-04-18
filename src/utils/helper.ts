@@ -1,12 +1,13 @@
 import type { ItemFormData, ItemFormErrors } from '../types/items';
 
-export const PAGE_SIZE = 10;
+export const PAGE_SIZE = 5;
 
 export const DEFAULT_ITEM_FORM_DATA: ItemFormData = {
   name: '',
   base_price: '',
   start_date: '',
-  end_date: ''
+  end_date: '',
+  is_active: true
 };
 
 export const formatDisplayDate = (dateString: string | null, locale = 'en-GB') => {
@@ -47,5 +48,34 @@ export const validateItemForm = (formData: ItemFormData): ItemFormErrors => {
   return nextErrors;
 };
 
+export const validateEditItemForm = (formData: ItemFormData): ItemFormErrors => {
+  const nextErrors: ItemFormErrors = {};
+
+  if (!formData.end_date) {
+    nextErrors.end_date = 'End Date is required.';
+  }
+
+  if (typeof formData.is_active !== 'boolean') {
+    nextErrors.status = 'Status is required.';
+  }
+
+  if (formData.start_date && formData.end_date && formData.end_date <= formData.start_date) {
+    nextErrors.end_date = 'End Date must be later than Start Date.';
+  }
+
+  return nextErrors;
+};
+
 export const isDateRangeInvalid = (startDate: string, endDate: string) =>
   Boolean(startDate) && Boolean(endDate) && startDate > endDate;
+
+export const getNextDateValue = (dateString: string) => {
+  if (!dateString) {
+    return '';
+  }
+
+  const date = new Date(dateString);
+  date.setDate(date.getDate() + 1);
+
+  return date.toISOString().split('T')[0];
+};
