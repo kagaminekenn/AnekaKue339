@@ -54,18 +54,25 @@
 
 body {
   margin: 0;
+  min-width: 320px;
+  background: #fff;
 }
 
 #root {
-  width: 1126px;
-  max-width: 100%;
+  width: 100%;
+  max-width: 1440px;
   margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
+  text-align: left;
   min-height: 100svh;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+}
+
+@media (min-width: 1024px) {
+  #root {
+    border-inline: 1px solid var(--border);
+  }
 }
 
 h1,

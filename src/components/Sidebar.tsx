@@ -11,6 +11,7 @@ import {
   User,
   ChevronDown,
   ChevronUp,
+  X,
 } from 'lucide-react'
 
 interface MenuItem {
@@ -22,9 +23,11 @@ interface MenuItem {
 interface SidebarProps {
   activePage: string
   onSelectPage: (page: string) => void
+  isOpen: boolean
+  onClose: () => void
 }
 
-const Sidebar = ({ activePage, onSelectPage }: SidebarProps) => {
+const Sidebar = ({ activePage, onSelectPage, isOpen, onClose }: SidebarProps) => {
   const [parameterOpen, setParameterOpen] = useState(true)
 
   const menuItems: MenuItem[] = [
@@ -40,18 +43,37 @@ const Sidebar = ({ activePage, onSelectPage }: SidebarProps) => {
 
 
   return (
-    <aside className="w-64 h-screen overflow-y-auto border-r border-slate-200 bg-slate-50">
+    <>
+      {isOpen && (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close navigation overlay"
+          className="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-sm lg:hidden"
+        />
+      )}
+      <aside className={`fixed inset-y-0 left-0 z-50 h-screen w-[18rem] overflow-y-auto border-r border-slate-200 bg-slate-50 transition-transform duration-300 lg:sticky lg:top-0 lg:z-10 lg:w-64 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="flex h-full flex-col justify-between">
         <div>
-          <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 justify-start">
-            <img
-              src={logo}
-              alt="Aneka Kue 339 logo"
-              className="h-10 w-10 rounded-full border border-slate-200 object-cover"
-            />
-            <div>
-              <p className="text-lg font-bold text-slate-900">Aneka Kue 339</p>
+          <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <img
+                src={logo}
+                alt="Aneka Kue 339 logo"
+                className="h-10 w-10 rounded-full border border-slate-200 object-cover"
+              />
+              <div>
+                <p className="text-lg font-bold text-slate-900">Aneka Kue 339</p>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close navigation"
+              className="rounded-xl p-2 text-slate-600 transition hover:bg-slate-200 lg:hidden"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
 
           <nav className="px-2 pt-4">
@@ -129,6 +151,7 @@ const Sidebar = ({ activePage, onSelectPage }: SidebarProps) => {
         </div>
       </div>
     </aside>
+    </>
   )
 }
 

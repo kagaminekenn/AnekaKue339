@@ -146,10 +146,10 @@ const Items = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <nav className="text-sm text-slate-500" aria-label="Breadcrumb">
-            <ol className="list-none p-0 inline-flex items-center gap-2">
+            <ol className="list-none p-0 inline-flex flex-wrap items-center gap-2">
               <li>Home</li>
               <li>/</li>
               <li className="font-semibold text-slate-900">Settings</li>
@@ -161,7 +161,7 @@ const Items = () => {
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors cursor-pointer flex items-center gap-2"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors cursor-pointer hover:bg-blue-700 sm:w-auto"
         >
           <Plus size={16} />
           Add
@@ -171,7 +171,8 @@ const Items = () => {
         {loading ? (
           <div className="p-10 text-center text-slate-500">Loading items...</div>
         ) : (
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Name</th>
@@ -197,6 +198,7 @@ const Items = () => {
               ))}
             </tbody>
           </table>
+          </div>
         )}
 
         {!loading && items.length === 0 && (
@@ -213,8 +215,8 @@ const Items = () => {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 shadow-2xl border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg border border-slate-200 bg-white p-5 shadow-2xl sm:mx-4 sm:p-6">
             <h2 className="text-xl font-bold text-slate-900 mb-4">Add New Item</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
