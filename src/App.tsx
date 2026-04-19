@@ -5,6 +5,8 @@ import Dashboard from './pages/Dashboard.tsx'
 import Order from './pages/PricingOrder.tsx'
 import Office from './pages/PricingOffice.tsx'
 import Items from './pages/Items.tsx'
+import SalesOffice from './pages/SalesOffice.tsx'
+import SalesOrder from './pages/SalesOrder.tsx'
 import Sidebar from './components/Sidebar'
 
 const pageComponents: Record<string, ReactNode> = {
@@ -13,6 +15,8 @@ const pageComponents: Record<string, ReactNode> = {
   Items: <Items />,
   PricingOffice: <Office />,
   PricingOrder: <Order />,
+  SalesOffice: <SalesOffice />,
+  SalesOrder: <SalesOrder />,
 }
 
 function App() {

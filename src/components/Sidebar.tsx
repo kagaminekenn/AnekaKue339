@@ -5,7 +5,7 @@ import {
   LayoutDashboard,
   Settings2,
   List,
-  Tag,
+  DollarSign,
   type LucideIcon,
   User,
   ChevronDown,
@@ -13,6 +13,7 @@ import {
   X,
   Building2,
   ShoppingCart,
+  ShoppingBasket,
 } from 'lucide-react'
 
 interface MenuItem {
@@ -31,6 +32,7 @@ interface SidebarProps {
 const Sidebar = ({ activePage, onSelectPage, isOpen, onClose }: SidebarProps) => {
   const [parameterOpen, setParameterOpen] = useState(activePage === 'Items')
   const [pricingOpen, setPricingOpen] = useState(activePage === 'PricingOffice' || activePage === 'PricingOrder')
+  const [salesOpen, setSalesOpen] = useState(activePage === 'SalesOffice' || activePage === 'SalesOrder')
 
   const menuItems: MenuItem[] = [
     { name: 'Home', key: 'Home', icon: Home },
@@ -43,7 +45,12 @@ const Sidebar = ({ activePage, onSelectPage, isOpen, onClose }: SidebarProps) =>
 
   const pricingItems: MenuItem[] = [
     { name: 'Office', key: 'PricingOffice', icon: Building2 },
-    { name: 'Order', key: 'PricingOrder', icon: ShoppingCart },
+    { name: 'Order', key: 'PricingOrder', icon: ShoppingBasket },
+  ]
+
+  const salesItems: MenuItem[] = [
+    { name: 'Office', key: 'SalesOffice', icon: Building2 },
+    { name: 'Order', key: 'SalesOrder', icon: ShoppingBasket },
   ]
 
 
@@ -107,12 +114,51 @@ const Sidebar = ({ activePage, onSelectPage, isOpen, onClose }: SidebarProps) =>
               <li>
                 <button
                   type="button"
+                  onClick={() => setSalesOpen((value) => !value)}
+                  className="group flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-medium text-slate-100 transition hover:bg-cyan-900/60"
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-400/20 text-cyan-200">
+                      <ShoppingCart className="h-5 w-5" />
+                    </span>
+                    Sales
+                  </span>
+                  {salesOpen ? <ChevronUp className="h-4 w-4 text-cyan-200" /> : <ChevronDown className="h-4 w-4 text-cyan-200" />}
+                </button>
+              </li>
+              <div className={`overflow-hidden transition-[max-height,opacity] duration-300 ${salesOpen ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
+                <ul className="space-y-2 pl-12 pt-2">
+                  {salesItems.map((item, index) => {
+                    const Icon = item.icon
+                    const isActive = activePage === item.key
+                    return (
+                      <li key={index}>
+                        <button
+                          type="button"
+                          onClick={() => onSelectPage(item.key)}
+                          className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
+                            isActive ? 'bg-cyan-500/20 text-cyan-100 ring-1 ring-cyan-300/40' : 'text-slate-100 hover:bg-cyan-900/60'
+                          }`}
+                        >
+                          <span className="flex h-8 w-8 items-center justify-center rounded-2xl bg-cyan-400/20 text-cyan-200">
+                            <Icon className="h-4 w-4" />
+                          </span>
+                          {item.name}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+              <li>
+                <button
+                  type="button"
                   onClick={() => setPricingOpen((value) => !value)}
                   className="group flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-medium text-slate-100 transition hover:bg-cyan-900/60"
                 >
                   <span className="flex items-center gap-3">
                     <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-400/20 text-cyan-200">
-                      <Tag className="h-5 w-5" />
+                      <DollarSign className="h-5 w-5" />
                     </span>
                     Pricing
                   </span>
