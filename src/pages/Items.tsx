@@ -210,7 +210,7 @@ const Items = () => {
             <ol className="list-none p-0 inline-flex flex-wrap items-center gap-2">
               <li>Home</li>
               <li>/</li>
-              <li className="font-semibold text-slate-900">Settings</li>
+              <li className="font-semibold text-slate-900">Parameter</li>
               <li>/</li>
               <li className="font-semibold text-slate-900">Items</li>
             </ol>
@@ -418,7 +418,7 @@ const Items = () => {
                   <button
                     type="button"
                     onClick={handleStatusToggle}
-                    className={`flex w-full items-center justify-between rounded-md border px-3 py-2 transition-colors ${
+                    className={`flex w-full items-center justify-between cursor-pointer rounded-md border px-3 py-2 transition-colors ${
                       errors.status
                         ? 'border-red-500 ring-2 ring-red-200 animate-pulse'
                         : 'border-slate-300 hover:bg-slate-50'
