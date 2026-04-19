@@ -3,7 +3,6 @@ import logo from '../assets/logo.png'
 import {
   Home,
   LayoutDashboard,
-  ShoppingCart,
   Settings2,
   List,
   Tag,
@@ -12,6 +11,8 @@ import {
   ChevronDown,
   ChevronUp,
   X,
+  Building2,
+  ShoppingCart,
 } from 'lucide-react'
 
 interface MenuItem {
@@ -28,17 +29,21 @@ interface SidebarProps {
 }
 
 const Sidebar = ({ activePage, onSelectPage, isOpen, onClose }: SidebarProps) => {
-  const [parameterOpen, setParameterOpen] = useState(true)
+  const [parameterOpen, setParameterOpen] = useState(activePage === 'Items')
+  const [pricingOpen, setPricingOpen] = useState(activePage === 'PricingOffice' || activePage === 'PricingOrder')
 
   const menuItems: MenuItem[] = [
     { name: 'Home', key: 'Home', icon: Home },
     { name: 'Dashboard', key: 'Dashboard', icon: LayoutDashboard },
-    { name: 'Order', key: 'Order', icon: ShoppingCart },
   ]
 
   const parameterItems: MenuItem[] = [
     { name: 'Items', key: 'Items', icon: List },
-    { name: 'Pricing', key: 'Pricing', icon: Tag },
+  ]
+
+  const pricingItems: MenuItem[] = [
+    { name: 'Office', key: 'PricingOffice', icon: Building2 },
+    { name: 'Order', key: 'PricingOrder', icon: ShoppingCart },
   ]
 
 
@@ -49,28 +54,29 @@ const Sidebar = ({ activePage, onSelectPage, isOpen, onClose }: SidebarProps) =>
           type="button"
           onClick={onClose}
           aria-label="Close navigation overlay"
-          className="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-sm lg:hidden"
         />
       )}
-      <aside className={`fixed inset-y-0 left-0 z-50 h-screen w-[18rem] overflow-y-auto border-r border-slate-200 bg-slate-50 transition-transform duration-300 lg:sticky lg:top-0 lg:z-10 lg:w-64 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 h-screen w-[18rem] overflow-y-auto border-r border-cyan-100 bg-gradient-to-b from-slate-900 via-slate-900 to-cyan-950 text-slate-100 transition-transform duration-300 lg:sticky lg:top-0 lg:z-10 lg:w-64 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="flex h-full flex-col justify-between">
         <div>
-          <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+          <div className="flex items-center justify-between gap-3 border-b border-cyan-900/65 px-4 py-4">
             <div className="flex items-center gap-3">
               <img
                 src={logo}
                 alt="Aneka Kue 339 logo"
-                className="h-10 w-10 rounded-full border border-slate-200 object-cover"
+                className="h-10 w-10 rounded-full border border-cyan-700/60 object-cover"
               />
               <div>
-                <p className="text-lg font-bold text-slate-900">Aneka Kue 339</p>
+                <p className="font-heading text-base font-bold tracking-tight text-white">Aneka Kue 339</p>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-cyan-200/80">Operational Console</p>
               </div>
             </div>
             <button
               type="button"
               onClick={onClose}
               aria-label="Close navigation"
-              className="rounded-xl p-2 text-slate-600 transition hover:bg-slate-200 lg:hidden"
+              className="rounded-xl p-2 text-cyan-100 transition hover:bg-cyan-900/70 lg:hidden"
             >
               <X className="h-5 w-5" />
             </button>
@@ -86,11 +92,11 @@ const Sidebar = ({ activePage, onSelectPage, isOpen, onClose }: SidebarProps) =>
                     <button
                       type="button"
                       onClick={() => onSelectPage(item.key)}
-                      className={`group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
-                        isActive ? 'bg-emerald-100 text-emerald-700' : 'text-slate-900 hover:bg-slate-200'
+                      className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
+                        isActive ? 'bg-cyan-500/20 text-cyan-100 ring-1 ring-cyan-300/40' : 'text-slate-100 hover:bg-cyan-900/60'
                       }`}
                     >
-                      <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-400/20 text-cyan-200">
                         <Icon className="h-5 w-5" />
                       </span>
                       {item.name}
@@ -101,16 +107,55 @@ const Sidebar = ({ activePage, onSelectPage, isOpen, onClose }: SidebarProps) =>
               <li>
                 <button
                   type="button"
-                  onClick={() => setParameterOpen((value) => !value)}
-                  className="group flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-medium text-slate-900 transition hover:bg-slate-200"
+                  onClick={() => setPricingOpen((value) => !value)}
+                  className="group flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-medium text-slate-100 transition hover:bg-cyan-900/60"
                 >
                   <span className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-400/20 text-cyan-200">
+                      <Tag className="h-5 w-5" />
+                    </span>
+                    Pricing
+                  </span>
+                  {pricingOpen ? <ChevronUp className="h-4 w-4 text-cyan-200" /> : <ChevronDown className="h-4 w-4 text-cyan-200" />}
+                </button>
+              </li>
+              <div className={`overflow-hidden transition-[max-height,opacity] duration-300 ${pricingOpen ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
+                <ul className="space-y-2 pl-12 pt-2">
+                  {pricingItems.map((item, index) => {
+                    const Icon = item.icon
+                    const isActive = activePage === item.key
+                    return (
+                      <li key={index}>
+                        <button
+                          type="button"
+                          onClick={() => onSelectPage(item.key)}
+                          className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
+                            isActive ? 'bg-cyan-500/20 text-cyan-100 ring-1 ring-cyan-300/40' : 'text-slate-100 hover:bg-cyan-900/60'
+                          }`}
+                        >
+                          <span className="flex h-8 w-8 items-center justify-center rounded-2xl bg-cyan-400/20 text-cyan-200">
+                            <Icon className="h-4 w-4" />
+                          </span>
+                          {item.name}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setParameterOpen((value) => !value)}
+                  className="group flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-medium text-slate-100 transition hover:bg-cyan-900/60"
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-400/20 text-cyan-200">
                       <Settings2 className="h-5 w-5" />
                     </span>
                     Parameter
                   </span>
-                  {parameterOpen ? <ChevronUp className="h-4 w-4 text-slate-600" /> : <ChevronDown className="h-4 w-4 text-slate-600" />}
+                  {parameterOpen ? <ChevronUp className="h-4 w-4 text-cyan-200" /> : <ChevronDown className="h-4 w-4 text-cyan-200" />}
                 </button>
               </li>
               <div className={`overflow-hidden transition-[max-height,opacity] duration-300 ${parameterOpen ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
@@ -123,11 +168,11 @@ const Sidebar = ({ activePage, onSelectPage, isOpen, onClose }: SidebarProps) =>
                         <button
                           type="button"
                           onClick={() => onSelectPage(item.key)}
-                          className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
-                            isActive ? 'bg-emerald-100 text-emerald-700' : 'text-slate-900 hover:bg-slate-200'
+                          className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
+                            isActive ? 'bg-cyan-500/20 text-cyan-100 ring-1 ring-cyan-300/40' : 'text-slate-100 hover:bg-cyan-900/60'
                           }`}
                         >
-                          <span className="flex h-8 w-8 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-2xl bg-cyan-400/20 text-cyan-200">
                             <Icon className="h-4 w-4" />
                           </span>
                           {item.name}
@@ -141,11 +186,11 @@ const Sidebar = ({ activePage, onSelectPage, isOpen, onClose }: SidebarProps) =>
           </nav>
         </div>
 
-        <div className="p-4 border-t border-slate-200">
+        <div className="border-t border-cyan-900/65 p-4">
           <div className="text-center">
             <div className="flex items-center justify-center gap-2">
-              <User className="h-4 w-4 text-slate-600" />
-              <p className="text-sm font-medium text-slate-700">Admin 339</p>
+              <User className="h-4 w-4 text-cyan-200" />
+              <p className="text-sm font-medium text-cyan-100">Admin 339</p>
             </div>
           </div>
         </div>

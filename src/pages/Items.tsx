@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../utils/supabase';
 import { Plus, X, Check, Pencil } from 'lucide-react';
 import Pagination from '../components/Pagination';
@@ -17,11 +18,13 @@ import {
 
 type ModalMode = 'add' | 'edit';
 
+interface ItemsQueryResult {
+  items: Item[];
+  totalItems: number;
+}
+
 const Items = () => {
-  const [items, setItems] = useState<Item[]>([]);
-  const [totalItems, setTotalItems] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>('add');
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
@@ -29,6 +32,34 @@ const Items = () => {
   const [errors, setErrors] = useState<ItemFormErrors>({});
   const startDateRef = useRef<HTMLInputElement | null>(null);
   const endDateRef = useRef<HTMLInputElement | null>(null);
+  const queryClient = useQueryClient();
+
+  const { data: itemsQueryData, isLoading: loading } = useQuery<ItemsQueryResult>({
+    queryKey: ['items', currentPage],
+    queryFn: async () => {
+      const from = (currentPage - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, error, count } = await supabase
+        .from('items')
+        .select('*', { count: 'exact' })
+        .order('name', { ascending: true })
+        .range(from, to);
+
+      if (error) {
+        throw error;
+      }
+
+      return {
+        items: (data ?? []) as Item[],
+        totalItems: count ?? 0,
+      };
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const items = itemsQueryData?.items ?? [];
+  const totalItems = itemsQueryData?.totalItems ?? 0;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -103,33 +134,6 @@ const Items = () => {
     setIsModalOpen(true);
   };
 
-  const fetchItems = useCallback(async (page: number) => {
-    setLoading(true);
-
-    const from = (page - 1) * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
-
-    try {
-      const { data, error, count } = await supabase
-        .from('items')
-        .select('*', { count: 'exact' })
-        .order('name', { ascending: true })
-        .range(from, to);
-
-      if (error) {
-        console.error('Error fetching items:', error);
-        return;
-      }
-
-      setItems(data || []);
-      setTotalItems(count || 0);
-    } catch (error) {
-      console.error('Error fetching items:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -177,11 +181,10 @@ const Items = () => {
         setEditingItemId(null);
         setFormData(DEFAULT_ITEM_FORM_DATA);
         setErrors({});
+        await queryClient.invalidateQueries({ queryKey: ['items'] });
 
         if (modalMode === 'add' && currentPage !== 1) {
           setCurrentPage(1);
-        } else {
-          await fetchItems(currentPage);
         }
       }
     } catch (error) {
@@ -198,40 +201,37 @@ const Items = () => {
     setErrors({});
   };
 
-  useEffect(() => {
-    fetchItems(currentPage);
-  }, [currentPage, fetchItems]);
-
   return (
-    <div className="space-y-6">
+    <div className="page-enter space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+        <div className="page-header w-full">
           <nav className="text-sm text-slate-500" aria-label="Breadcrumb">
             <ol className="list-none p-0 inline-flex flex-wrap items-center gap-2">
               <li>Home</li>
               <li>/</li>
               <li className="font-semibold text-slate-900">Settings</li>
               <li>/</li>
-              <li className="font-semibold text-slate-900">Items</li>
+              <li className="font-semibold uppercase tracking-[0.08em] text-cyan-800">Items</li>
             </ol>
           </nav>
-          <h1 className="text-3xl font-bold text-slate-900">Items</h1>
+          <h1 className="page-title">Items</h1>
+          <p className="page-subtitle">Kelola master item untuk semua kebutuhan pricing.</p>
         </div>
         <button
           onClick={openAddModal}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors cursor-pointer hover:bg-blue-700 sm:w-auto"
+          className="modern-primary flex w-full cursor-pointer items-center justify-center gap-2 px-4 py-2 font-medium sm:w-auto"
         >
           <Plus size={16} />
           Add
         </button>
       </div>
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+      <div className="glass-panel overflow-hidden rounded-2xl border border-cyan-100">
         {loading ? (
           <div className="p-10 text-center text-slate-500">Loading items...</div>
         ) : (
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px]">
-            <thead className="bg-slate-50 border-b border-slate-200">
+          <table className="modern-table w-full min-w-[720px]">
+            <thead className="border-b border-cyan-100">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Base Price</th>
@@ -241,7 +241,7 @@ const Items = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Action</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-slate-200">
+            <tbody className="divide-y divide-cyan-50 bg-white/80">
               {items.map((item) => (
                 <tr key={item.id}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">{item.name}</td>
@@ -286,7 +286,7 @@ const Items = () => {
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg border border-slate-200 bg-white p-5 shadow-2xl sm:mx-4 sm:p-6">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-cyan-100 bg-white/95 p-5 shadow-2xl sm:mx-4 sm:p-6">
             <h2 className="text-xl font-bold text-slate-900 mb-4">
               {modalMode === 'edit' ? 'Edit Item' : 'Add New Item'}
             </h2>
@@ -457,7 +457,7 @@ const Items = () => {
                 <button
                   type="submit"
                   disabled={modalMode === 'add' ? dateRangeInvalid : editDateRangeInvalid}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white rounded-md font-medium transition-colors flex items-center gap-2 cursor-pointer"
+                  className="modern-primary flex cursor-pointer items-center gap-2 rounded-md px-4 py-2 font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400"
                 >
                   <Check size={16} />
                   {modalMode === 'edit' ? 'Update' : 'Submit'}
