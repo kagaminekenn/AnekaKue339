@@ -9,9 +9,7 @@ export interface OfficePricingItem {
   start_date: string;
   end_date: string | null;
   is_active: boolean;
-  items: {
-    name: string;
-  } | null;
+  item_name: string | null;
 }
 
 export interface ItemOption {
