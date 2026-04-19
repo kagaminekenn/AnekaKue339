@@ -203,8 +203,7 @@ const Items = () => {
 
   return (
     <div className="page-enter space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="page-header w-full">
+      <div className="page-header">
           <nav className="text-sm text-slate-500" aria-label="Breadcrumb">
             <ol className="list-none p-0 inline-flex flex-wrap items-center gap-2">
               <li>Home</li>
@@ -216,16 +215,17 @@ const Items = () => {
           </nav>
           <h1 className="page-title">Items</h1>
           <p className="page-subtitle">Manage master items for all pricing needs.</p>
-        </div>
-        <button
-          onClick={openAddModal}
-          className="modern-primary flex w-full cursor-pointer items-center justify-center gap-2 px-4 py-2 font-medium sm:w-auto"
-        >
-          <Plus size={16} />
-          Add
-        </button>
       </div>
       <div className="glass-panel overflow-hidden rounded-2xl border border-cyan-100">
+        <div className="flex items-center justify-end border-b border-cyan-100 px-4 py-3 sm:px-6">
+          <button
+            onClick={openAddModal}
+            className="modern-primary flex cursor-pointer items-center justify-center gap-2 px-4 py-2 font-medium"
+          >
+            <Plus size={16} />
+            Add
+          </button>
+        </div>
         {loading ? (
           <div className="p-10 text-center text-slate-500">Loading items...</div>
         ) : (
