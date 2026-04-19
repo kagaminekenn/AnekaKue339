@@ -59,7 +59,11 @@ const PricingOffice = () => {
   const endDateRef = useRef<HTMLInputElement | null>(null);
   const queryClient = useQueryClient();
 
-  const { data: officePricingQueryData, isLoading: isOfficePricingLoading } = useQuery<OfficePricingQueryResult>({
+  const {
+    data: officePricingQueryData,
+    isLoading: isOfficePricingLoading,
+    isFetching: isOfficePricingFetching,
+  } = useQuery<OfficePricingQueryResult>({
     queryKey: ['office-pricing', currentPage, selectedLocationFilter],
     queryFn: async () => {
       const from = (currentPage - 1) * PAGE_SIZE;
@@ -110,7 +114,7 @@ const PricingOffice = () => {
 
   const records = officePricingQueryData?.records ?? [];
   const totalItems = officePricingQueryData?.totalItems ?? 0;
-  const loading = isOfficePricingLoading;
+  const loading = isOfficePricingLoading || isOfficePricingFetching;
   const itemOptions = itemOptionsData ?? [];
 
   const sortedRecords = useMemo(() => {
@@ -403,11 +407,15 @@ const PricingOffice = () => {
       setItemSearchKeyword('');
       setLocationSearchKeyword('');
       setErrors({});
-      await queryClient.invalidateQueries({ queryKey: ['office-pricing'] });
-
       if (modalMode === 'add' && currentPage !== 1) {
         setCurrentPage(1);
       }
+
+      await queryClient.invalidateQueries({
+        queryKey: ['office-pricing'],
+        exact: false,
+        refetchType: 'all',
+      });
     } catch (error) {
       console.error(`Error ${modalMode === 'edit' ? 'updating' : 'adding'} office pricing:`, error);
       alert(`Error ${modalMode === 'edit' ? 'updating' : 'adding'} office pricing`);
