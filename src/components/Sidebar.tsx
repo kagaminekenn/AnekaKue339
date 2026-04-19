@@ -86,7 +86,7 @@ const Sidebar = ({ activePage, onSelectPage, isOpen, onClose }: SidebarProps) =>
                     <button
                       type="button"
                       onClick={() => onSelectPage(item.key)}
-                      className={`group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
+                      className={`group flex w-full items-center cursor-pointer gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
                         isActive ? 'bg-emerald-100 text-emerald-700' : 'text-slate-900 hover:bg-slate-200'
                       }`}
                     >
@@ -102,7 +102,7 @@ const Sidebar = ({ activePage, onSelectPage, isOpen, onClose }: SidebarProps) =>
                 <button
                   type="button"
                   onClick={() => setParameterOpen((value) => !value)}
-                  className="group flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-medium text-slate-900 transition hover:bg-slate-200"
+                  className="group flex w-full items-center justify-between cursor-pointer rounded-xl px-3 py-3 text-left text-sm font-medium text-slate-900 transition hover:bg-slate-200"
                 >
                   <span className="flex items-center gap-3">
                     <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
@@ -123,7 +123,7 @@ const Sidebar = ({ activePage, onSelectPage, isOpen, onClose }: SidebarProps) =>
                         <button
                           type="button"
                           onClick={() => onSelectPage(item.key)}
-                          className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
+                          className={`group flex w-full items-center cursor-pointer gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
                             isActive ? 'bg-emerald-100 text-emerald-700' : 'text-slate-900 hover:bg-slate-200'
                           }`}
                         >
