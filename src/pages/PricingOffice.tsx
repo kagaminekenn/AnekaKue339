@@ -64,21 +64,26 @@ const PricingOffice = () => {
     isLoading: isOfficePricingLoading,
     isFetching: isOfficePricingFetching,
   } = useQuery<OfficePricingQueryResult>({
-    queryKey: ['office-pricing', currentPage, selectedLocationFilter],
+    // sortKey & sortDirection masuk queryKey agar refetch otomatis saat sort berubah
+    queryKey: ['office-pricing', currentPage, selectedLocationFilter, sortKey, sortDirection],
     queryFn: async () => {
       const from = (currentPage - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
       let query = supabase
-        .from('office_pricing')
-        .select('*,items(name)', { count: 'exact' })
-        .order('name', { ascending: true, foreignTable: 'items' })
-        .order('id', { ascending: false })
-        .range(from, to);
+        .from('office_pricing_view') // ganti ke view
+        .select('*', { count: 'exact' });
 
       if (selectedLocationFilter) {
         query = query.eq('selling_location', selectedLocationFilter);
       }
+
+      // sort langsung by kolom flat dari view
+      query = query
+        .order(sortKey === 'item_name' ? 'item_name' : sortKey, {
+          ascending: sortDirection === 'asc',
+        })
+        .range(from, to);
 
       const { data, error, count } = await query;
 
@@ -117,53 +122,6 @@ const PricingOffice = () => {
   const loading = isOfficePricingLoading || isOfficePricingFetching;
   const itemOptions = itemOptionsData ?? [];
 
-  const sortedRecords = useMemo(() => {
-    const copiedRecords = [...records];
-
-    copiedRecords.sort((a, b) => {
-      let comparison = 0;
-
-      switch (sortKey) {
-        case 'item_name': {
-          const aValue = a.items?.name ?? '';
-          const bValue = b.items?.name ?? '';
-          comparison = aValue.localeCompare(bValue, undefined, { sensitivity: 'base' });
-          break;
-        }
-        case 'selling_location': {
-          comparison = a.selling_location.localeCompare(b.selling_location, undefined, { sensitivity: 'base' });
-          break;
-        }
-        case 'selling_price': {
-          comparison = a.selling_price - b.selling_price;
-          break;
-        }
-        case 'profit': {
-          comparison = a.profit - b.profit;
-          break;
-        }
-        case 'start_date': {
-          comparison = new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
-          break;
-        }
-        case 'end_date': {
-          const aValue = a.end_date ? new Date(a.end_date).getTime() : Number.POSITIVE_INFINITY;
-          const bValue = b.end_date ? new Date(b.end_date).getTime() : Number.POSITIVE_INFINITY;
-          comparison = aValue - bValue;
-          break;
-        }
-        case 'is_active': {
-          comparison = Number(a.is_active) - Number(b.is_active);
-          break;
-        }
-      }
-
-      return sortDirection === 'asc' ? comparison : -comparison;
-    });
-
-    return copiedRecords;
-  }, [records, sortDirection, sortKey]);
-
   const itemSelectOptions = useMemo<ItemSelectOption[]>(
     () =>
       itemOptions.map((item) => ({
@@ -198,18 +156,16 @@ const PricingOffice = () => {
   const handleSort = (nextKey: SortKey) => {
     if (sortKey === nextKey) {
       setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-      return;
+    } else {
+      setSortKey(nextKey);
+      setSortDirection('asc');
     }
-
-    setSortKey(nextKey);
-    setSortDirection('asc');
+    // reset ke page 1 setiap ganti sort agar tidak misleading
+    setCurrentPage(1);
   };
 
   const getSortIndicator = (key: SortKey) => {
-    if (sortKey !== key) {
-      return '↕';
-    }
-
+    if (sortKey !== key) return '↕';
     return sortDirection === 'asc' ? '↑' : '↓';
   };
 
@@ -243,10 +199,7 @@ const PricingOffice = () => {
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
 
     if (name in errors) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
@@ -261,7 +214,6 @@ const PricingOffice = () => {
       const sellingPrice = parsePriceInput(sellingPriceFormatted);
       const basePrice = selected?.base_price ?? 0;
       const computed = Math.max(sellingPrice - basePrice, 0);
-
       return formatPriceInput(String(computed));
     },
     [itemOptions],
@@ -297,30 +249,17 @@ const PricingOffice = () => {
     if (errors.selling_price) {
       setErrors((prev) => ({ ...prev, selling_price: undefined }));
     }
-
   };
 
   const handleItemSearchInputChange = (value: string, meta: InputActionMeta) => {
-    if (meta.action === 'input-change') {
-      setItemSearchKeyword(value);
-    }
-
-    if (meta.action === 'set-value' || meta.action === 'menu-close') {
-      setItemSearchKeyword('');
-    }
-
+    if (meta.action === 'input-change') setItemSearchKeyword(value);
+    if (meta.action === 'set-value' || meta.action === 'menu-close') setItemSearchKeyword('');
     return value;
   };
 
   const handleLocationSearchInputChange = (value: string, meta: InputActionMeta) => {
-    if (meta.action === 'input-change') {
-      setLocationSearchKeyword(value);
-    }
-
-    if (meta.action === 'set-value' || meta.action === 'menu-close') {
-      setLocationSearchKeyword('');
-    }
-
+    if (meta.action === 'input-change') setLocationSearchKeyword(value);
+    if (meta.action === 'set-value' || meta.action === 'menu-close') setLocationSearchKeyword('');
     return value;
   };
 
@@ -336,10 +275,7 @@ const PricingOffice = () => {
   };
 
   const handleStatusToggle = () => {
-    setFormData((prev) => ({
-      ...prev,
-      is_active: !(prev.is_active ?? false),
-    }));
+    setFormData((prev) => ({ ...prev, is_active: !(prev.is_active ?? false) }));
 
     if (errors.status) {
       setErrors((prev) => ({ ...prev, status: undefined }));
@@ -356,7 +292,10 @@ const PricingOffice = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const nextErrors = modalMode === 'edit' ? validateOfficePricingEditForm(formData) : validateOfficePricingAddForm(formData);
+    const nextErrors =
+      modalMode === 'edit'
+        ? validateOfficePricingEditForm(formData)
+        : validateOfficePricingAddForm(formData);
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
@@ -407,6 +346,7 @@ const PricingOffice = () => {
       setItemSearchKeyword('');
       setLocationSearchKeyword('');
       setErrors({});
+
       if (modalMode === 'add' && currentPage !== 1) {
         setCurrentPage(1);
       }
@@ -453,7 +393,6 @@ const PricingOffice = () => {
           <div className="inline-flex flex-wrap items-center gap-2 rounded-xl bg-cyan-50 p-1">
             {SELLING_LOCATIONS.map((location) => {
               const isActive = selectedLocationFilter === location;
-
               return (
                 <button
                   key={location}
@@ -478,6 +417,7 @@ const PricingOffice = () => {
             Add
           </button>
         </div>
+
         {loading ? (
           <div className="p-10 text-center text-slate-500">Loading office pricing...</div>
         ) : (
@@ -524,9 +464,10 @@ const PricingOffice = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-cyan-50 bg-white/80">
-                {sortedRecords.map((record) => (
+                {records.map((record) => (
                   <tr key={record.id}>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.items?.name ?? '-'}</td>
+                    {/* item_name langsung dari view, bukan record.items?.name */}
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.item_name ?? '-'}</td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.selling_location}</td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
                       Rp {record.selling_price.toLocaleString()}
@@ -548,7 +489,7 @@ const PricingOffice = () => {
                         type="button"
                         onClick={() => openEditModal(record)}
                         title="Edit office pricing"
-                        aria-label={`Edit office pricing for ${record.items?.name ?? 'item'}`}
+                        aria-label={`Edit office pricing for ${record.item_name ?? 'item'}`}
                         className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100"
                       >
                         <Pencil className="h-4 w-4" />
@@ -576,7 +517,9 @@ const PricingOffice = () => {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
           <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-cyan-100 bg-white/95 p-5 shadow-2xl sm:mx-4 sm:p-6">
-            <h2 className="mb-4 text-xl font-bold text-slate-900">{modalMode === 'edit' ? 'Edit Office Pricing' : 'Add Office Pricing'}</h2>
+            <h2 className="mb-4 text-xl font-bold text-slate-900">
+              {modalMode === 'edit' ? 'Edit Office Pricing' : 'Add Office Pricing'}
+            </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">Item</label>
@@ -737,7 +680,11 @@ const PricingOffice = () => {
                     autoComplete="off"
                     value={formData.end_date}
                     onChange={handleDateChange}
-                    min={modalMode === 'edit' ? getNextDateValue(formData.start_date) || undefined : formData.start_date || undefined}
+                    min={
+                      modalMode === 'edit'
+                        ? getNextDateValue(formData.start_date) || undefined
+                        : formData.start_date || undefined
+                    }
                     className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                   />
                 </div>
@@ -758,7 +705,9 @@ const PricingOffice = () => {
                     role="switch"
                     aria-checked={Boolean(formData.is_active)}
                   >
-                    <span className="text-sm font-medium text-slate-700">{formData.is_active ? 'Active' : 'Inactive'}</span>
+                    <span className="text-sm font-medium text-slate-700">
+                      {formData.is_active ? 'Active' : 'Inactive'}
+                    </span>
                     <span
                       className={`relative h-6 w-11 rounded-full transition-colors ${
                         formData.is_active ? 'bg-emerald-600' : 'bg-slate-300'
