@@ -48,6 +48,21 @@ export const validateItemForm = (formData: ItemFormData): ItemFormErrors => {
   return nextErrors;
 };
 
+export const formatCurrency = (value: number | null) => {
+  if (value === null) return '-';
+  return `Rp ${value.toLocaleString('id-ID')}`;
+};
+
+export const parseNumberInput = (value: string) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? 0 : Math.max(parsed, 0);
+};
+
+export const toNullIfZero = (value: number) => (value === 0 ? null : value);
+
+export const getStatusBadgeClassName = (value: boolean, trueTone: string, falseTone: string) =>
+  `inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${value ? trueTone : falseTone}`;
+
 export const validateEditItemForm = (formData: ItemFormData): ItemFormErrors => {
   const nextErrors: ItemFormErrors = {};
 
