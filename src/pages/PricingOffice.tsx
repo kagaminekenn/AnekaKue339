@@ -434,8 +434,7 @@ const PricingOffice = () => {
 
   return (
     <div className="page-enter space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="page-header w-full">
+      <div className="page-header">
           <nav className="text-sm text-slate-500" aria-label="Breadcrumb">
             <ol className="inline-flex list-none flex-wrap items-center gap-2 p-0">
               <li>Home</li>
@@ -447,18 +446,10 @@ const PricingOffice = () => {
           </nav>
           <h1 className="page-title">Office Pricing</h1>
           <p className="page-subtitle">Manage prices for daily sales in the office.</p>
-        </div>
-        <button
-          onClick={openAddModal}
-          className="modern-primary flex w-full cursor-pointer items-center justify-center gap-2 px-4 py-2 font-medium sm:w-auto"
-        >
-          <Plus size={16} />
-          Add
-        </button>
       </div>
 
       <div className="glass-panel overflow-hidden rounded-2xl border border-cyan-100">
-        <div className="border-b border-cyan-100 px-4 py-3 sm:px-6">
+        <div className="flex items-center justify-between border-b border-cyan-100 px-4 py-3 sm:px-6">
           <div className="inline-flex flex-wrap items-center gap-2 rounded-xl bg-cyan-50 p-1">
             {SELLING_LOCATIONS.map((location) => {
               const isActive = selectedLocationFilter === location;
@@ -479,6 +470,13 @@ const PricingOffice = () => {
               );
             })}
           </div>
+          <button
+            onClick={openAddModal}
+            className="modern-primary flex cursor-pointer items-center justify-center gap-2 px-4 py-2 font-medium"
+          >
+            <Plus size={16} />
+            Add
+          </button>
         </div>
         {loading ? (
           <div className="p-10 text-center text-slate-500">Loading office pricing...</div>

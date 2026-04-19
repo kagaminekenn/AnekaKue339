@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CircleCheck, CircleX, Eye, Plus, TrendingDown, TrendingUp, X, Trash2 } from 'lucide-react';
+import { CircleCheck, CircleX, Eye, EyeOff, Plus, TrendingDown, TrendingUp, X, Trash2 } from 'lucide-react';
 import Select, { type InputActionMeta, type SingleValue } from 'react-select';
 import Pagination from '../components/Pagination';
 import { SELLING_LOCATIONS } from '../constants/sellingLocations';
@@ -38,6 +38,8 @@ const SalesOffice = () => {
   const [detailSortDirection, setDetailSortDirection] = useState<SortDirection>('asc');
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isDetailSensorOn, setIsDetailSensorOn] = useState(true);
+  const [isAddSensorOn, setIsAddSensorOn] = useState(true);
   const [addFormData, setAddFormData] = useState<AddFormData>({
     sales_date: defaultSalesDate,
     selling_location: defaultLocationFilter,
@@ -310,18 +312,18 @@ const SalesOffice = () => {
 
   const getSortIndicator = (key: SortKey) => {
     if (sortKey !== key) {
-      return '↕';
+      return '\u2195';
     }
 
-    return sortDirection === 'asc' ? '↑' : '↓';
+    return sortDirection === 'asc' ? '\u2191' : '\u2193';
   };
 
   const getDetailSortIndicator = (key: DetailSortKey) => {
     if (detailSortKey !== key) {
-      return '↕';
+      return '\u2195';
     }
 
-    return detailSortDirection === 'asc' ? '↑' : '↓';
+    return detailSortDirection === 'asc' ? '\u2191' : '\u2193';
   };
 
   const handleDetailSort = (nextKey: DetailSortKey) => {
@@ -341,6 +343,7 @@ const SalesOffice = () => {
     setDetailCurrentPage(1);
     setDetailSortKey('item_name');
     setDetailSortDirection('asc');
+    setIsDetailSensorOn(true);
   };
 
   const handleCloseDetail = () => {
@@ -350,6 +353,7 @@ const SalesOffice = () => {
 
   const handleOpenAddModal = () => {
     setIsAddModalOpen(true);
+    setIsAddSensorOn(true);
   };
 
   const handleCloseAddModal = () => {
@@ -469,6 +473,20 @@ const SalesOffice = () => {
     }
 
     try {
+      const rollbackOfficeSales = async (salesId: number) => {
+        const rollbackResponse = await fetch(`${OFFICE_SALES_API_URL}?id=eq.${salesId}`, {
+          method: 'DELETE',
+          headers: {
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        });
+
+        if (!rollbackResponse.ok) {
+          throw new Error(`Rollback failed: ${rollbackResponse.status} ${rollbackResponse.statusText}`);
+        }
+      };
+
       const salesResponse = await fetch(OFFICE_SALES_API_URL, {
         method: 'POST',
         headers: {
@@ -484,7 +502,7 @@ const SalesOffice = () => {
           total_stocks: addSummaryTotals.totalStocks,
           total_solds: addSummaryTotals.totalSolds,
           total_leftovers: addSummaryTotals.totalLeftovers,
-          total_cost: addSummaryTotals.totalCostNullable,
+          total_cost: addSummaryTotals.totalCost,
           total_revenue: addSummaryTotals.totalRevenueNullable,
           total_loss: addSummaryTotals.totalLossNullable,
           net_income: addSummaryTotals.netIncomeNullable,
@@ -514,10 +532,10 @@ const SalesOffice = () => {
           leftovers: item.leftovers,
           is_ordered: item.is_ordered,
           is_free: item.is_free,
-          total_cost: computed.totalCost,
+          total_cost: computed.totalCost ?? 0,
           total_revenue: computed.totalRevenue,
           total_loss: computed.totalLoss,
-          net_income: computed.netIncome,
+          net_income: computed.netIncome ?? 0,
         };
       });
 
@@ -532,7 +550,17 @@ const SalesOffice = () => {
       });
 
       if (!detailResponse.ok) {
-        throw new Error(`Failed to create office sales items: ${detailResponse.status} ${detailResponse.statusText}`);
+        try {
+          await rollbackOfficeSales(salesId);
+        } catch (rollbackError) {
+          throw new Error(
+            `Failed to create office sales items and rollback also failed: ${
+              rollbackError instanceof Error ? rollbackError.message : 'Unknown rollback error'
+            }`,
+          );
+        }
+
+        throw new Error(`Failed to create office sales items: ${detailResponse.status} ${detailResponse.statusText}. Rollback completed.`);
       }
 
       await queryClient.invalidateQueries({ queryKey: ['office-sales'] });
@@ -543,34 +571,27 @@ const SalesOffice = () => {
     }
   };
 
+  const detailSensorClass = isDetailSensorOn ? 'select-none blur-sm' : '';
+  const addSensorClass = isAddSensorOn ? 'select-none blur-sm' : '';
+
   return (
     <div className="page-enter space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="page-header w-full">
-          <nav className="text-sm text-slate-500" aria-label="Breadcrumb">
-            <ol className="inline-flex list-none flex-wrap items-center gap-2 p-0">
-              <li>Home</li>
-              <li>/</li>
-              <li className="font-semibold text-slate-900">Sales</li>
-              <li>/</li>
-              <li className="font-semibold uppercase tracking-[0.08em] text-cyan-800">Office</li>
-            </ol>
-          </nav>
-          <h1 className="page-title">Office Sales</h1>
-          <p className="page-subtitle">Kelola data penjualan untuk channel office secara terstruktur.</p>
-        </div>
-        <button
-          type="button"
-          onClick={handleOpenAddModal}
-          className="modern-primary flex w-full cursor-pointer items-center justify-center gap-2 px-4 py-2 font-medium sm:w-auto"
-        >
-          <Plus size={16} />
-          Add
-        </button>
+      <div className="page-header">
+        <nav className="text-sm text-slate-500" aria-label="Breadcrumb">
+          <ol className="inline-flex list-none flex-wrap items-center gap-2 p-0">
+            <li>Home</li>
+            <li>/</li>
+            <li className="font-semibold text-slate-900">Sales</li>
+            <li>/</li>
+            <li className="font-semibold uppercase tracking-[0.08em] text-cyan-800">Office</li>
+          </ol>
+        </nav>
+        <h1 className="page-title">Office Sales</h1>
+        <p className="page-subtitle">Kelola data penjualan untuk channel office secara terstruktur.</p>
       </div>
 
       <div className="glass-panel overflow-hidden rounded-2xl border border-cyan-100">
-        <div className="border-b border-cyan-100 px-4 py-3 sm:px-6">
+        <div className="flex items-center justify-between border-b border-cyan-100 px-4 py-3 sm:px-6">
           <div className="inline-flex flex-wrap items-center gap-2 rounded-xl bg-cyan-50 p-1">
             {SELLING_LOCATIONS.map((location) => {
               const isActive = selectedLocationFilter === location;
@@ -591,13 +612,23 @@ const SalesOffice = () => {
               );
             })}
           </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleOpenAddModal}
+              className="modern-primary flex cursor-pointer items-center justify-center gap-2 px-4 py-2 font-medium"
+            >
+              <Plus size={16} />
+              Add
+            </button>
+          </div>
         </div>
 
         {loading ? (
           <div className="p-10 text-center text-slate-500">Loading office sales...</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="modern-table w-full min-w-[1300px]">
+            <table className="modern-table w-full min-w-[980px]">
               <thead className="border-b border-cyan-100">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
@@ -626,26 +657,6 @@ const SalesOffice = () => {
                     </button>
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('total_cost')} className="inline-flex cursor-pointer items-center gap-1">
-                      Total Cost <span>{getSortIndicator('total_cost')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('total_revenue')} className="inline-flex cursor-pointer items-center gap-1">
-                      Total Revenue <span>{getSortIndicator('total_revenue')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('total_loss')} className="inline-flex cursor-pointer items-center gap-1">
-                      Total Loss <span>{getSortIndicator('total_loss')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('net_income')} className="inline-flex cursor-pointer items-center gap-1">
-                      Net Income <span>{getSortIndicator('net_income')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
                     <button type="button" onClick={() => handleSort('is_saved')} className="inline-flex cursor-pointer items-center gap-1">
                       Saved <span>{getSortIndicator('is_saved')}</span>
                     </button>
@@ -661,10 +672,6 @@ const SalesOffice = () => {
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.total_stocks}</td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.total_solds}</td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.total_leftovers}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{formatCurrency(record.total_cost)}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{formatCurrency(record.total_revenue)}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{formatCurrency(record.total_loss)}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{formatCurrency(record.net_income)}</td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
                       <span
                         className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
@@ -712,15 +719,31 @@ const SalesOffice = () => {
                 <h2 className="text-xl font-bold text-slate-900">Office Sales Detail</h2>
                 <p className="mt-1 text-sm text-slate-500">Sales data summary and item list for selected transactions.</p>
               </div>
-              <button
-                type="button"
-                onClick={handleCloseDetail}
-                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100"
-                aria-label="Close detail modal"
-                title="Close"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsDetailSensorOn((prev) => !prev)}
+                  title={isDetailSensorOn ? 'Tampilkan nilai finansial' : 'Sembunyikan nilai finansial'}
+                  aria-label={isDetailSensorOn ? 'Tampilkan nilai finansial' : 'Sembunyikan nilai finansial'}
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    isDetailSensorOn
+                      ? 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+                      : 'border-cyan-300 bg-cyan-50 text-cyan-800 hover:bg-cyan-100'
+                  }`}
+                >
+                  {isDetailSensorOn ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {isDetailSensorOn ? 'Sensor: On' : 'Sensor: Off'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCloseDetail}
+                  className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100"
+                  aria-label="Close detail modal"
+                  title="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -758,15 +781,15 @@ const SalesOffice = () => {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Cost</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{formatCurrency(selectedRecord.total_cost)}</p>
+                  <p className="mt-1 text-sm font-medium text-slate-900"><span className={detailSensorClass}>{formatCurrency(selectedRecord.total_cost)}</span></p>
                 </div>
                 <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Revenue</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{formatCurrency(selectedRecord.total_revenue)}</p>
+                  <p className="mt-1 text-sm font-medium text-slate-900"><span className={detailSensorClass}>{formatCurrency(selectedRecord.total_revenue)}</span></p>
                 </div>
                 <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Loss</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{formatCurrency(selectedRecord.total_loss)}</p>
+                  <p className="mt-1 text-sm font-medium text-slate-900"><span className={detailSensorClass}>{formatCurrency(selectedRecord.total_loss)}</span></p>
                 </div>
                 <div
                   className={`rounded-xl border p-4 shadow-sm ${
@@ -791,7 +814,7 @@ const SalesOffice = () => {
                       selectedRecord.net_income >= 0 ? 'text-emerald-700' : 'text-rose-700'
                     }`}
                   >
-                    {formatCurrency(selectedRecord.net_income)}
+                    <span className={detailSensorClass}>{formatCurrency(selectedRecord.net_income)}</span>
                   </p>
                 </div>
               </div>
@@ -890,9 +913,9 @@ const SalesOffice = () => {
                                 {detail.is_free ? <CircleCheck className="h-4 w-4" /> : <CircleX className="h-4 w-4" />}
                               </span>
                             </td>
-                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{formatCurrency(detail.total_cost)}</td>
-                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{formatCurrency(detail.total_revenue)}</td>
-                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{formatCurrency(detail.total_loss)}</td>
+                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900"><span className={detailSensorClass}>{formatCurrency(detail.total_cost)}</span></td>
+                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900"><span className={detailSensorClass}>{formatCurrency(detail.total_revenue)}</span></td>
+                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900"><span className={detailSensorClass}>{formatCurrency(detail.total_loss)}</span></td>
                             <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
                               <span
                                 className={`inline-flex items-center gap-1.5 font-medium ${
@@ -902,7 +925,7 @@ const SalesOffice = () => {
                                 aria-label={detail.net_income >= 0 ? 'Profit' : 'Loss'}
                               >
                                 {detail.net_income >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                                {formatCurrency(detail.net_income)}
+                                <span className={detailSensorClass}>{formatCurrency(detail.net_income)}</span>
                               </span>
                             </td>
                           </tr>
@@ -934,15 +957,31 @@ const SalesOffice = () => {
                 <h2 className="text-xl font-bold text-slate-900">Add Office Sales</h2>
                 <p className="mt-1 text-sm text-slate-500">Create a new office sales record with items details.</p>
               </div>
-              <button
-                type="button"
-                onClick={handleCloseAddModal}
-                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100"
-                aria-label="Close modal"
-                title="Close"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddSensorOn((prev) => !prev)}
+                  title={isAddSensorOn ? 'Tampilkan nilai finansial' : 'Sembunyikan nilai finansial'}
+                  aria-label={isAddSensorOn ? 'Tampilkan nilai finansial' : 'Sembunyikan nilai finansial'}
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    isAddSensorOn
+                      ? 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+                      : 'border-cyan-300 bg-cyan-50 text-cyan-800 hover:bg-cyan-100'
+                  }`}
+                >
+                  {isAddSensorOn ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {isAddSensorOn ? 'Sensor: On' : 'Sensor: Off'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCloseAddModal}
+                  className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100"
+                  aria-label="Close modal"
+                  title="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div className="space-y-6">
@@ -1012,15 +1051,15 @@ const SalesOffice = () => {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Cost</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{formatCurrency(addSummaryTotals.totalCost)}</p>
+                  <p className="mt-1 text-sm font-medium text-slate-900"><span className={addSensorClass}>{formatCurrency(addSummaryTotals.totalCost)}</span></p>
                 </div>
                 <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Revenue</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{formatCurrency(addSummaryTotals.totalRevenue)}</p>
+                  <p className="mt-1 text-sm font-medium text-slate-900"><span className={addSensorClass}>{formatCurrency(addSummaryTotals.totalRevenue)}</span></p>
                 </div>
                 <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Loss</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{formatCurrency(addSummaryTotals.totalLoss)}</p>
+                  <p className="mt-1 text-sm font-medium text-slate-900"><span className={addSensorClass}>{formatCurrency(addSummaryTotals.totalLoss)}</span></p>
                 </div>
                 <div
                   className={`rounded-xl border p-4 shadow-sm ${
@@ -1031,7 +1070,7 @@ const SalesOffice = () => {
                 >
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Net Income</p>
                   <p className={`mt-2 text-sm font-bold ${addSummaryTotals.netIncome >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                    {formatCurrency(addSummaryTotals.netIncome)}
+                    <span className={addSensorClass}>{formatCurrency(addSummaryTotals.netIncome)}</span>
                   </p>
                 </div>
               </div>
@@ -1138,7 +1177,7 @@ const SalesOffice = () => {
                                   <button
                                     type="button"
                                     onClick={() => handleItemChange(item.id, 'is_ordered', !item.is_ordered)}
-                                    className={`inline-flex h-7 w-12 items-center rounded-full p-1 transition ${
+                                    className={`inline-flex h-7 w-12 items-center cursor-pointer rounded-full p-1 transition ${
                                       item.is_ordered ? 'bg-emerald-500' : 'bg-slate-300'
                                     }`}
                                   >
@@ -1153,7 +1192,7 @@ const SalesOffice = () => {
                                   <button
                                     type="button"
                                     onClick={() => handleItemChange(item.id, 'is_free', !item.is_free)}
-                                    className={`inline-flex h-7 w-12 items-center rounded-full p-1 transition ${
+                                    className={`inline-flex h-7 w-12 items-center cursor-pointer rounded-full p-1 transition ${
                                       item.is_free ? 'bg-emerald-500' : 'bg-slate-300'
                                     }`}
                                   >
@@ -1170,6 +1209,7 @@ const SalesOffice = () => {
                                     disabled
                                     value={formatCurrency(computed.totalCost)}
                                     className="w-full cursor-not-allowed rounded border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-600"
+                                    style={isAddSensorOn ? { filter: 'blur(4px)' } : undefined}
                                   />
                                 </td>
                                 <td className="px-4 py-4 text-sm text-slate-900">
@@ -1178,6 +1218,7 @@ const SalesOffice = () => {
                                     disabled
                                     value={formatCurrency(computed.totalRevenue)}
                                     className="w-full cursor-not-allowed rounded border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-600"
+                                    style={isAddSensorOn ? { filter: 'blur(4px)' } : undefined}
                                   />
                                 </td>
                                 <td className="px-4 py-4 text-sm text-slate-900">
@@ -1186,6 +1227,7 @@ const SalesOffice = () => {
                                     disabled
                                     value={formatCurrency(computed.totalLoss)}
                                     className="w-full cursor-not-allowed rounded border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-600"
+                                    style={isAddSensorOn ? { filter: 'blur(4px)' } : undefined}
                                   />
                                 </td>
                                 <td className="px-4 py-4 text-sm text-slate-900">
@@ -1194,13 +1236,14 @@ const SalesOffice = () => {
                                     disabled
                                     value={formatCurrency(computed.netIncome)}
                                     className="w-full cursor-not-allowed rounded border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-600"
+                                    style={isAddSensorOn ? { filter: 'blur(4px)' } : undefined}
                                   />
                                 </td>
                                 <td className="px-4 py-4 text-sm text-slate-900">
                                   <button
                                     type="button"
                                     onClick={() => handleRemoveRow(item.id)}
-                                    className="inline-flex items-center justify-center rounded p-1 text-rose-600 transition-colors hover:bg-rose-50"
+                                    className="inline-flex items-center justify-center cursor-pointer rounded p-1 text-rose-600 transition-colors hover:bg-rose-50"
                                     title="Delete row"
                                     aria-label="Delete row"
                                   >
