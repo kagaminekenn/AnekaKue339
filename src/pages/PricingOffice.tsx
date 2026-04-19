@@ -6,6 +6,23 @@ import Pagination from '../components/Pagination';
 import { supabase } from '../utils/supabase';
 import { SELLING_LOCATIONS } from '../constants/sellingLocations';
 import {
+  getReactSelectClassNames,
+  renderHighlightedLabel,
+  validateOfficePricingAddForm,
+  validateOfficePricingEditForm,
+} from '../utils/officePricing';
+import {
+  DEFAULT_OFFICE_PRICING_FORM_DATA,
+  type ItemOption,
+  type ItemSelectOption,
+  type LocationSelectOption,
+  type ModalMode,
+  type OfficePricingFormData,
+  type OfficePricingFormErrors,
+  type OfficePricingItem,
+  type OfficePricingQueryResult,
+} from '../types/officePricing';
+import {
   PAGE_SIZE,
   formatDisplayDate,
   formatPriceInput,
@@ -14,120 +31,27 @@ import {
   parsePriceInput,
 } from '../utils/helper';
 
-type ModalMode = 'add' | 'edit';
+type SortKey =
+  | 'item_name'
+  | 'selling_location'
+  | 'selling_price'
+  | 'profit'
+  | 'start_date'
+  | 'end_date'
+  | 'is_active';
 
-interface OfficePricingItem {
-  id: number;
-  item_id: number;
-  selling_location: string;
-  selling_price: number;
-  profit: number;
-  start_date: string;
-  end_date: string | null;
-  is_active: boolean;
-  items: {
-    name: string;
-  } | null;
-}
-
-interface ItemOption {
-  id: number;
-  name: string;
-  base_price: number;
-}
-
-interface ItemSelectOption {
-  value: string;
-  label: string;
-  basePrice: number;
-}
-
-interface LocationSelectOption {
-  value: string;
-  label: string;
-}
-
-interface OfficePricingFormData {
-  item_id: string;
-  selling_location: string;
-  selling_price: string;
-  profit: string;
-  start_date: string;
-  end_date: string;
-  is_active: boolean | null;
-}
-
-interface OfficePricingFormErrors {
-  item_id?: string;
-  selling_location?: string;
-  selling_price?: string;
-  profit?: string;
-  start_date?: string;
-  end_date?: string;
-  status?: string;
-}
-
-interface OfficePricingQueryResult {
-  records: OfficePricingItem[];
-  totalItems: number;
-}
-
-const DEFAULT_FORM_DATA: OfficePricingFormData = {
-  item_id: '',
-  selling_location: '',
-  selling_price: '',
-  profit: '',
-  start_date: '',
-  end_date: '',
-  is_active: true,
-};
-
-const validateAddForm = (formData: OfficePricingFormData): OfficePricingFormErrors => {
-  const nextErrors: OfficePricingFormErrors = {};
-
-  if (!formData.item_id) {
-    nextErrors.item_id = 'Item is required.';
-  }
-
-  if (!formData.selling_location.trim()) {
-    nextErrors.selling_location = 'Selling Location is required.';
-  }
-
-  if (!formData.selling_price.trim()) {
-    nextErrors.selling_price = 'Selling Price is required.';
-  }
-
-  if (!formData.start_date) {
-    nextErrors.start_date = 'Start Date is required.';
-  }
-
-  return nextErrors;
-};
-
-const validateEditForm = (formData: OfficePricingFormData): OfficePricingFormErrors => {
-  const nextErrors: OfficePricingFormErrors = {};
-
-  if (!formData.end_date) {
-    nextErrors.end_date = 'End Date is required.';
-  }
-
-  if (typeof formData.is_active !== 'boolean') {
-    nextErrors.status = 'Status is required.';
-  }
-
-  if (formData.start_date && formData.end_date && formData.end_date <= formData.start_date) {
-    nextErrors.end_date = 'End Date must be later than Start Date.';
-  }
-
-  return nextErrors;
-};
+type SortDirection = 'asc' | 'desc';
 
 const PricingOffice = () => {
+  const defaultLocationFilter = SELLING_LOCATIONS[0] ?? '';
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedLocationFilter, setSelectedLocationFilter] = useState<string>(defaultLocationFilter);
+  const [sortKey, setSortKey] = useState<SortKey>('item_name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>('add');
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState<OfficePricingFormData>(DEFAULT_FORM_DATA);
+  const [formData, setFormData] = useState<OfficePricingFormData>(DEFAULT_OFFICE_PRICING_FORM_DATA);
   const [itemSearchKeyword, setItemSearchKeyword] = useState('');
   const [locationSearchKeyword, setLocationSearchKeyword] = useState('');
   const [errors, setErrors] = useState<OfficePricingFormErrors>({});
@@ -136,16 +60,23 @@ const PricingOffice = () => {
   const queryClient = useQueryClient();
 
   const { data: officePricingQueryData, isLoading: isOfficePricingLoading } = useQuery<OfficePricingQueryResult>({
-    queryKey: ['office-pricing', currentPage],
+    queryKey: ['office-pricing', currentPage, selectedLocationFilter],
     queryFn: async () => {
       const from = (currentPage - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      const { data, error, count } = await supabase
+      let query = supabase
         .from('office_pricing')
         .select('*,items(name)', { count: 'exact' })
+        .order('name', { ascending: true, foreignTable: 'items' })
         .order('id', { ascending: false })
         .range(from, to);
+
+      if (selectedLocationFilter) {
+        query = query.eq('selling_location', selectedLocationFilter);
+      }
+
+      const { data, error, count } = await query;
 
       if (error) {
         throw error;
@@ -165,6 +96,7 @@ const PricingOffice = () => {
       const { data, error } = await supabase
         .from('items')
         .select('id,name,base_price')
+        .eq('is_active', true)
         .order('name', { ascending: true });
 
       if (error) {
@@ -180,6 +112,53 @@ const PricingOffice = () => {
   const totalItems = officePricingQueryData?.totalItems ?? 0;
   const loading = isOfficePricingLoading;
   const itemOptions = itemOptionsData ?? [];
+
+  const sortedRecords = useMemo(() => {
+    const copiedRecords = [...records];
+
+    copiedRecords.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortKey) {
+        case 'item_name': {
+          const aValue = a.items?.name ?? '';
+          const bValue = b.items?.name ?? '';
+          comparison = aValue.localeCompare(bValue, undefined, { sensitivity: 'base' });
+          break;
+        }
+        case 'selling_location': {
+          comparison = a.selling_location.localeCompare(b.selling_location, undefined, { sensitivity: 'base' });
+          break;
+        }
+        case 'selling_price': {
+          comparison = a.selling_price - b.selling_price;
+          break;
+        }
+        case 'profit': {
+          comparison = a.profit - b.profit;
+          break;
+        }
+        case 'start_date': {
+          comparison = new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
+          break;
+        }
+        case 'end_date': {
+          const aValue = a.end_date ? new Date(a.end_date).getTime() : Number.POSITIVE_INFINITY;
+          const bValue = b.end_date ? new Date(b.end_date).getTime() : Number.POSITIVE_INFINITY;
+          comparison = aValue - bValue;
+          break;
+        }
+        case 'is_active': {
+          comparison = Number(a.is_active) - Number(b.is_active);
+          break;
+        }
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    return copiedRecords;
+  }, [records, sortDirection, sortKey]);
 
   const itemSelectOptions = useMemo<ItemSelectOption[]>(
     () =>
@@ -207,10 +186,33 @@ const PricingOffice = () => {
     [formData.selling_location, sellingLocationOptions],
   );
 
+  const handleLocationFilterChange = (location: string) => {
+    setSelectedLocationFilter(location);
+    setCurrentPage(1);
+  };
+
+  const handleSort = (nextKey: SortKey) => {
+    if (sortKey === nextKey) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+
+    setSortKey(nextKey);
+    setSortDirection('asc');
+  };
+
+  const getSortIndicator = (key: SortKey) => {
+    if (sortKey !== key) {
+      return '↕';
+    }
+
+    return sortDirection === 'asc' ? '↑' : '↓';
+  };
+
   const openAddModal = () => {
     setModalMode('add');
     setEditingId(null);
-    setFormData(DEFAULT_FORM_DATA);
+    setFormData(DEFAULT_OFFICE_PRICING_FORM_DATA);
     setItemSearchKeyword('');
     setLocationSearchKeyword('');
     setErrors({});
@@ -329,27 +331,6 @@ const PricingOffice = () => {
     }
   };
 
-  const renderHighlightedLabel = (label: string, keyword: string) => {
-    if (!keyword.trim()) {
-      return label;
-    }
-
-    const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const parts = label.split(new RegExp(`(${escapedKeyword})`, 'ig'));
-
-    return parts.map((part, index) => {
-      if (part.toLowerCase() === keyword.toLowerCase()) {
-        return (
-          <mark key={`${part}-${index}`} className="rounded bg-amber-100 px-0.5 text-slate-900">
-            {part}
-          </mark>
-        );
-      }
-
-      return <span key={`${part}-${index}`}>{part}</span>;
-    });
-  };
-
   const handleStatusToggle = () => {
     setFormData((prev) => ({
       ...prev,
@@ -371,7 +352,7 @@ const PricingOffice = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const nextErrors = modalMode === 'edit' ? validateEditForm(formData) : validateAddForm(formData);
+    const nextErrors = modalMode === 'edit' ? validateOfficePricingEditForm(formData) : validateOfficePricingAddForm(formData);
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
@@ -418,7 +399,7 @@ const PricingOffice = () => {
       setIsModalOpen(false);
       setModalMode('add');
       setEditingId(null);
-      setFormData(DEFAULT_FORM_DATA);
+      setFormData(DEFAULT_OFFICE_PRICING_FORM_DATA);
       setItemSearchKeyword('');
       setLocationSearchKeyword('');
       setErrors({});
@@ -437,7 +418,7 @@ const PricingOffice = () => {
     setIsModalOpen(false);
     setModalMode('add');
     setEditingId(null);
-    setFormData(DEFAULT_FORM_DATA);
+    setFormData(DEFAULT_OFFICE_PRICING_FORM_DATA);
     setItemSearchKeyword('');
     setLocationSearchKeyword('');
     setErrors({});
@@ -457,7 +438,7 @@ const PricingOffice = () => {
             </ol>
           </nav>
           <h1 className="page-title">Office Pricing</h1>
-          <p className="page-subtitle">Atur harga per lokasi penjualan dengan kontrol yang lebih rapi.</p>
+          <p className="page-subtitle">Manage prices for daily sales in the office.</p>
         </div>
         <button
           onClick={openAddModal}
@@ -469,6 +450,28 @@ const PricingOffice = () => {
       </div>
 
       <div className="glass-panel overflow-hidden rounded-2xl border border-cyan-100">
+        <div className="border-b border-cyan-100 px-4 py-3 sm:px-6">
+          <div className="inline-flex flex-wrap items-center gap-2 rounded-xl bg-cyan-50 p-1">
+            {SELLING_LOCATIONS.map((location) => {
+              const isActive = selectedLocationFilter === location;
+
+              return (
+                <button
+                  key={location}
+                  type="button"
+                  onClick={() => handleLocationFilterChange(location)}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition cursor-pointer ${
+                    isActive
+                      ? 'bg-white text-cyan-800 shadow-sm ring-1 ring-cyan-200'
+                      : 'text-slate-600 hover:bg-white/70 hover:text-cyan-700'
+                  }`}
+                >
+                  {location}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         {loading ? (
           <div className="p-10 text-center text-slate-500">Loading office pricing...</div>
         ) : (
@@ -476,18 +479,46 @@ const PricingOffice = () => {
             <table className="modern-table w-full min-w-[900px]">
               <thead className="border-b border-cyan-100">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Item</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Selling Location</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Selling Price</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Profit</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Start Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">End Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    <button type="button" onClick={() => handleSort('item_name')} className="inline-flex cursor-pointer items-center gap-1">
+                      Item <span>{getSortIndicator('item_name')}</span>
+                    </button>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    <button type="button" onClick={() => handleSort('selling_location')} className="inline-flex cursor-pointer items-center gap-1">
+                      Selling Location <span>{getSortIndicator('selling_location')}</span>
+                    </button>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    <button type="button" onClick={() => handleSort('selling_price')} className="inline-flex cursor-pointer items-center gap-1">
+                      Selling Price <span>{getSortIndicator('selling_price')}</span>
+                    </button>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    <button type="button" onClick={() => handleSort('profit')} className="inline-flex cursor-pointer items-center gap-1">
+                      Profit <span>{getSortIndicator('profit')}</span>
+                    </button>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    <button type="button" onClick={() => handleSort('start_date')} className="inline-flex cursor-pointer items-center gap-1">
+                      Start Date <span>{getSortIndicator('start_date')}</span>
+                    </button>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    <button type="button" onClick={() => handleSort('end_date')} className="inline-flex cursor-pointer items-center gap-1">
+                      End Date <span>{getSortIndicator('end_date')}</span>
+                    </button>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    <button type="button" onClick={() => handleSort('is_active')} className="inline-flex cursor-pointer items-center gap-1">
+                      Status <span>{getSortIndicator('is_active')}</span>
+                    </button>
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-cyan-50 bg-white/80">
-                {records.map((record) => (
+                {sortedRecords.map((record) => (
                   <tr key={record.id}>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.items?.name ?? '-'}</td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.selling_location}</td>
@@ -557,26 +588,7 @@ const PricingOffice = () => {
                   )}
                   noOptionsMessage={() => 'Item not found'}
                   className={errors.item_id ? 'animate-pulse' : ''}
-                  classNames={{
-                    control: (state) =>
-                      `!min-h-[42px] !rounded-md !border !cursor-pointer ${
-                        errors.item_id
-                          ? '!border-red-500 !ring-2 !ring-red-200'
-                          : state.isFocused
-                            ? '!border-blue-500 !ring-2 !ring-blue-200'
-                            : '!border-slate-300'
-                      } ${modalMode === 'edit' ? '!cursor-not-allowed !bg-slate-100 !text-slate-500' : '!bg-white !text-slate-900'}`,
-                    menu: () => '!z-[60] !mt-1 !overflow-hidden !rounded-md !border !border-slate-200 !shadow-lg',
-                    option: (state) =>
-                      `!cursor-pointer !px-3 !py-2 !text-sm ${
-                        state.isFocused ? '!bg-blue-50 !text-blue-700' : '!bg-white !text-slate-900'
-                      }`,
-                    valueContainer: () => '!px-3 !py-0',
-                    placeholder: () => '!text-slate-400',
-                    input: () => '!text-slate-900',
-                    singleValue: () => '!text-slate-900',
-                    indicatorsContainer: () => '!*:text-slate-500',
-                  }}
+                  classNames={getReactSelectClassNames(Boolean(errors.item_id), modalMode === 'edit')}
                 />
                 {errors.item_id && <p className="mt-1 text-sm text-red-600 animate-pulse">{errors.item_id}</p>}
               </div>
@@ -597,26 +609,7 @@ const PricingOffice = () => {
                   )}
                   noOptionsMessage={() => 'Selling location not found'}
                   className={errors.selling_location ? 'animate-pulse' : ''}
-                  classNames={{
-                    control: (state) =>
-                      `!min-h-[42px] !rounded-md !border !cursor-pointer ${
-                        errors.selling_location
-                          ? '!border-red-500 !ring-2 !ring-red-200'
-                          : state.isFocused
-                            ? '!border-blue-500 !ring-2 !ring-blue-200'
-                            : '!border-slate-300'
-                      } ${modalMode === 'edit' ? '!cursor-not-allowed !bg-slate-100 !text-slate-500' : '!bg-white !text-slate-900'}`,
-                    menu: () => '!z-[60] !mt-1 !overflow-hidden !rounded-md !border !border-slate-200 !shadow-lg',
-                    option: (state) =>
-                      `!cursor-pointer !px-3 !py-2 !text-sm ${
-                        state.isFocused ? '!bg-blue-50 !text-blue-700' : '!bg-white !text-slate-900'
-                      }`,
-                    valueContainer: () => '!px-3 !py-0',
-                    placeholder: () => '!text-slate-400',
-                    input: () => '!text-slate-900',
-                    singleValue: () => '!text-slate-900',
-                    indicatorsContainer: () => '!*:text-slate-500',
-                  }}
+                  classNames={getReactSelectClassNames(Boolean(errors.selling_location), modalMode === 'edit')}
                 />
                 {errors.selling_location && (
                   <p className="mt-1 text-sm text-red-600 animate-pulse">{errors.selling_location}</p>

@@ -215,7 +215,7 @@ const Items = () => {
             </ol>
           </nav>
           <h1 className="page-title">Items</h1>
-          <p className="page-subtitle">Kelola master item untuk semua kebutuhan pricing.</p>
+          <p className="page-subtitle">Manage master items for all pricing needs.</p>
         </div>
         <button
           onClick={openAddModal}
