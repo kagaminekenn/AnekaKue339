@@ -4,7 +4,7 @@ const SESSION_DURATION_MS = 60 * 60 * 1000
 interface UserInfo {
   id: string
   email: string | null
-  displayName: string | null
+  displayName?: string | null
 }
 
 export interface AuthSessionPayload {
@@ -100,3 +100,5 @@ export async function loadEncryptedSession() {
 export function clearEncryptedSession() {
   sessionStorage.removeItem(SESSION_STORAGE_KEY)
 }
+
+export const SESSION_MAX_AGE_MS = SESSION_DURATION_MS

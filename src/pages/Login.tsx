@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Eye, EyeOff, LockKeyhole, LogIn, Mail } from 'lucide-react'
+import { LockKeyhole, Mail, LogIn, Eye, EyeOff } from 'lucide-react'
 import logo from '../assets/logo.png'
 
 interface LoginProps {
@@ -54,7 +54,7 @@ const Login = ({ onSubmit }: LoginProps) => {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 className="modern-input w-full py-2.5 pl-10 pr-3 text-sm text-slate-800 placeholder:text-slate-400"
-                placeholder="nama@perusahaan.com"
+                placeholder="anekakue339@gmail.com"
                 autoComplete="email"
                 required
               />

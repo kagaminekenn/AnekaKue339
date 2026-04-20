@@ -35,9 +35,9 @@ function App() {
       return null
     }
 
-    const displayName = (userMetadata as { display_name?: unknown }).display_name
-    if (typeof displayName === 'string' && displayName.trim()) {
-      return displayName.trim()
+    const metadataName = (userMetadata as { display_name?: unknown }).display_name
+    if (typeof metadataName === 'string' && metadataName.trim()) {
+      return metadataName.trim()
     }
 
     return null
@@ -128,7 +128,7 @@ function App() {
 
     setIsAuthenticated(true)
     setSessionExpiresAt(savedSession.expiresAt)
-    setUserDisplayName(savedSession.user.displayName || 'Admin 339')
+    setUserDisplayName(displayName || 'Admin 339')
     return null
   }
 
