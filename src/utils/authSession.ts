@@ -1,5 +1,5 @@
 const SESSION_STORAGE_KEY = 'anekakue339.auth.session'
-const SESSION_DURATION_MS = 60 * 60 * 1000
+const SESSION_DURATION_MS = 30 * 60 * 1000
 
 interface UserInfo {
   id: string
@@ -77,6 +77,33 @@ export async function saveEncryptedSession(input: Omit<AuthSessionPayload, 'expi
   const encrypted = await encryptPayload(payload)
   sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(encrypted))
   return payload
+}
+
+export async function touchEncryptedSession() {
+  const raw = sessionStorage.getItem(SESSION_STORAGE_KEY)
+  if (!raw) return null
+
+  try {
+    const encrypted = JSON.parse(raw) as EncryptedSession
+    const payload = await decryptPayload(encrypted)
+
+    if (payload.expiresAt <= Date.now()) {
+      clearEncryptedSession()
+      return null
+    }
+
+    const refreshedPayload: AuthSessionPayload = {
+      ...payload,
+      expiresAt: Date.now() + SESSION_DURATION_MS,
+    }
+
+    const refreshedEncrypted = await encryptPayload(refreshedPayload)
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(refreshedEncrypted))
+    return refreshedPayload
+  } catch {
+    clearEncryptedSession()
+    return null
+  }
 }
 
 export async function loadEncryptedSession() {
