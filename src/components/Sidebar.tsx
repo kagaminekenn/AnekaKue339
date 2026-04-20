@@ -245,7 +245,7 @@ const Sidebar = ({ activePage, onSelectPage, isOpen, onClose, userDisplayName, o
               <button
                 type="button"
                 onClick={onLogout}
-                className="mt-3 inline-flex items-center gap-2 rounded-lg border border-cyan-700/70 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-900/70"
+                className="cursor-pointer mt-3 inline-flex items-center gap-2 rounded-lg border border-cyan-700/70 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-900/70"
               >
                 <LogOut className="h-3.5 w-3.5" />
                 Logout
