@@ -4,8 +4,8 @@ import { CircleCheck, CircleX, Download, Eye, EyeOff, FileText, MapPin, Minus, P
 import { toPng } from 'html-to-image';
 import Select, { type InputActionMeta, type SingleValue } from 'react-select';
 import Pagination from '../components/Pagination';
-import { SELLING_LOCATIONS } from '../constants/sellingLocations';
-import { ADD_ITEMS_PAGE_SIZE, OFFICE_SALES_API_URL, OFFICE_SALES_DETAIL_API_URL, OFFICE_SALES_DETAIL_WRITE_API_URL } from '../constants/officeSales';
+import { SELLING_LOCATIONS } from '../constants/main';
+import { ADD_ITEMS_PAGE_SIZE, OFFICE_SALES_API_URL, OFFICE_SALES_DETAIL_API_URL, OFFICE_SALES_DETAIL_WRITE_API_URL } from '../constants/main';
 import { PAGE_SIZE, formatCurrency, formatDisplayDate, getStatusBadgeClassName, parseNumberInput, toNullIfZero } from '../utils/helper';
 import { getReactSelectClassNames, renderHighlightedLabel } from '../utils/officePricing';
 import { supabase } from '../utils/supabase';
@@ -44,6 +44,7 @@ const SalesOffice = () => {
   const [isDetailSensorOn, setIsDetailSensorOn] = useState(true);
   const [isAddSensorOn, setIsAddSensorOn] = useState(true);
   const [isEditSensorOn, setIsEditSensorOn] = useState(true);
+  const [isAddSubmitting, setIsAddSubmitting] = useState(false);
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
   const [editingRecord, setEditingRecord] = useState<OfficeSalesRecord | null>(null);
   const [isEditLoading, setIsEditLoading] = useState(false);
@@ -557,6 +558,10 @@ const SalesOffice = () => {
   };
 
   const handleCloseAddModal = () => {
+    if (isAddSubmitting) {
+      return;
+    }
+
     setIsAddModalOpen(false);
     setAddFormData({ sales_date: defaultSalesDate, selling_location: defaultLocationFilter });
     setAddFormItems([]);
@@ -623,6 +628,10 @@ const SalesOffice = () => {
   };
 
   const handleCloseEditModal = () => {
+    if (isEditSubmitting) {
+      return;
+    }
+
     setIsEditModalOpen(false);
     setIsEditSensorOn(true);
     setIsEditSubmitting(false);
@@ -827,6 +836,10 @@ const SalesOffice = () => {
   };
 
   const handleSubmitAddForm = async () => {
+    if (isAddSubmitting) {
+      return;
+    }
+
     if (!addFormData.sales_date || !addFormData.selling_location || addFormItems.length === 0) {
       alert('Please fill in Sales Date, Selling Location, and add at least one item.');
       return;
@@ -837,6 +850,8 @@ const SalesOffice = () => {
       alert('Please select Product for all item rows.');
       return;
     }
+
+    setIsAddSubmitting(true);
 
     try {
       const rollbackOfficeSales = async (salesId: number) => {
@@ -936,10 +951,16 @@ const SalesOffice = () => {
     } catch (error) {
       console.error('Error submitting add office sales:', error);
       alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsAddSubmitting(false);
     }
   };
 
   const handleSubmitEditForm = async () => {
+    if (isEditSubmitting) {
+      return;
+    }
+
     if (!editingRecord) {
       alert('No selected office sales record to edit.');
       return;
@@ -1634,7 +1655,8 @@ const SalesOffice = () => {
                 <button
                   type="button"
                   onClick={handleCloseAddModal}
-                  className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100"
+                  disabled={isAddSubmitting}
+                  className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
                   aria-label="Close modal"
                   title="Close"
                 >
@@ -1916,7 +1938,8 @@ const SalesOffice = () => {
                 <button
                   type="button"
                   onClick={handleCloseAddModal}
-                  className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                  disabled={isAddSubmitting}
+                  className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <XCircle className="h-4 w-4" />
                   Cancel
@@ -1924,10 +1947,11 @@ const SalesOffice = () => {
                 <button
                   type="button"
                   onClick={handleSubmitAddForm}
-                  className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700"
+                  disabled={isAddSubmitting}
+                  className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Plus className="h-4 w-4" />
-                  Create Sales
+                  {isAddSubmitting ? 'Creating...' : 'Create Sales'}
                 </button>
               </div>
             </div>
@@ -1961,7 +1985,8 @@ const SalesOffice = () => {
                 <button
                   type="button"
                   onClick={handleCloseEditModal}
-                  className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100"
+                  disabled={isEditSubmitting}
+                  className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
                   aria-label="Close edit modal"
                   title="Close"
                 >
@@ -2246,7 +2271,8 @@ const SalesOffice = () => {
                   <button
                     type="button"
                     onClick={handleCloseEditModal}
-                    className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                    disabled={isEditSubmitting}
+                    className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <XCircle className="h-4 w-4" />
                     Cancel

@@ -30,6 +30,7 @@ const Items = () => {
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [formData, setFormData] = useState(DEFAULT_ITEM_FORM_DATA);
   const [errors, setErrors] = useState<ItemFormErrors>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const startDateRef = useRef<HTMLInputElement | null>(null);
   const endDateRef = useRef<HTMLInputElement | null>(null);
   const queryClient = useQueryClient();
@@ -137,6 +138,10 @@ const Items = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (isSubmitting) {
+      return;
+    }
+
     const nextErrors = modalMode === 'edit'
       ? validateEditItemForm(formData)
       : validateItemForm(formData);
@@ -150,6 +155,8 @@ const Items = () => {
       alert('Start Date cannot be greater than End Date.');
       return;
     }
+
+    setIsSubmitting(true);
 
     try {
       const { error } = modalMode === 'edit'
@@ -190,10 +197,16 @@ const Items = () => {
     } catch (error) {
       console.error(`Error ${modalMode === 'edit' ? 'updating' : 'adding'} item:`, error);
       alert(`Error ${modalMode === 'edit' ? 'updating' : 'adding'} item`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleCancel = () => {
+    if (isSubmitting) {
+      return;
+    }
+
     setIsModalOpen(false);
     setModalMode('add');
     setEditingItemId(null);
@@ -449,18 +462,19 @@ const Items = () => {
                 <button
                   type="button"
                   onClick={handleCancel}
-                  className="px-4 py-2 text-slate-700 bg-slate-200 hover:bg-slate-300 rounded-md font-medium transition-colors flex items-center gap-2 cursor-pointer"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 text-slate-700 bg-slate-200 hover:bg-slate-300 rounded-md font-medium transition-colors flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <X size={16} />
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={modalMode === 'add' ? dateRangeInvalid : editDateRangeInvalid}
+                  disabled={isSubmitting || (modalMode === 'add' ? dateRangeInvalid : editDateRangeInvalid)}
                   className="modern-primary flex cursor-pointer items-center gap-2 rounded-md px-4 py-2 font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400"
                 >
                   <Check size={16} />
-                  {modalMode === 'edit' ? 'Update' : 'Submit'}
+                  {isSubmitting ? 'Submitting...' : modalMode === 'edit' ? 'Update' : 'Submit'}
                 </button>
               </div>
             </form>
