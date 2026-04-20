@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode, useEffect, useRef, useState } from 'react'
 import { Menu } from 'lucide-react'
 import Home from './pages/Home.tsx'
 import Dashboard from './pages/Dashboard.tsx'
@@ -10,7 +10,7 @@ import SalesOrder from './pages/SalesOrder.tsx'
 import Sidebar from './components/Sidebar'
 import Login from './pages/Login.tsx'
 import { supabase } from './utils/supabase.ts'
-import { clearEncryptedSession, loadEncryptedSession, saveEncryptedSession } from './utils/authSession.ts'
+import { clearEncryptedSession, loadEncryptedSession, saveEncryptedSession, touchEncryptedSession } from './utils/authSession.ts'
 
 const pageComponents: Record<string, ReactNode> = {
   Home: <Home />,
@@ -29,6 +29,7 @@ function App() {
   const [isBootstrapping, setIsBootstrapping] = useState(true)
   const [sessionExpiresAt, setSessionExpiresAt] = useState<number | null>(null)
   const [userDisplayName, setUserDisplayName] = useState<string | null>(null)
+  const isTouchingSessionRef = useRef(false)
 
   const getDisplayNameFromMetadata = (userMetadata: unknown) => {
     if (!userMetadata || typeof userMetadata !== 'object') {
@@ -102,6 +103,45 @@ function App() {
 
     return () => window.clearTimeout(timeoutId)
   }, [isAuthenticated, sessionExpiresAt])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const refreshSessionOnInteraction = async () => {
+      if (isTouchingSessionRef.current) {
+        return
+      }
+
+      isTouchingSessionRef.current = true
+
+      try {
+        const refreshedSession = await touchEncryptedSession()
+        if (!refreshedSession) {
+          void logout()
+          return
+        }
+
+        setSessionExpiresAt(refreshedSession.expiresAt)
+      } finally {
+        isTouchingSessionRef.current = false
+      }
+    }
+
+    const events: Array<keyof WindowEventMap> = ['click', 'keydown', 'touchstart', 'scroll', 'mousemove']
+    const handler = () => {
+      void refreshSessionOnInteraction()
+    }
+
+    for (const eventName of events) {
+      window.addEventListener(eventName, handler, { passive: true })
+    }
+
+    return () => {
+      for (const eventName of events) {
+        window.removeEventListener(eventName, handler)
+      }
+    }
+  }, [isAuthenticated])
 
   const handleLogin = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
