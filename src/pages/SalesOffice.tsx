@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CircleCheck, CircleX, Eye, EyeOff, Minus, Pencil, Plus, TrendingDown, TrendingUp, X, Trash2 } from 'lucide-react';
+import { CircleCheck, CircleX, Download, Eye, EyeOff, FileText, MapPin, Minus, Pencil, Plus, Save, TrendingDown, TrendingUp, X, XCircle, Trash2 } from 'lucide-react';
+import { toPng } from 'html-to-image';
 import Select, { type InputActionMeta, type SingleValue } from 'react-select';
 import Pagination from '../components/Pagination';
 import { SELLING_LOCATIONS } from '../constants/sellingLocations';
@@ -33,6 +34,7 @@ const SalesOffice = () => {
   const [sortKey, setSortKey] = useState<SortKey>('sales_date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [selectedRecord, setSelectedRecord] = useState<OfficeSalesRecord | null>(null);
+  const [reportRecord, setReportRecord] = useState<OfficeSalesRecord | null>(null);
   const [detailCurrentPage, setDetailCurrentPage] = useState(1);
   const [detailSortKey, setDetailSortKey] = useState<DetailSortKey>('item_name');
   const [detailSortDirection, setDetailSortDirection] = useState<SortDirection>('asc');
@@ -163,6 +165,41 @@ const SalesOffice = () => {
       };
     },
     enabled: selectedRecord !== null,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const {
+    data: reportDetailRecords,
+    isLoading: isReportDetailLoading,
+    isFetching: isReportDetailFetching,
+  } = useQuery<OfficeSalesDetailRecord[]>({
+    queryKey: ['office-sales-report-detail', reportRecord?.id],
+    queryFn: async () => {
+      if (!reportRecord) {
+        return [];
+      }
+
+      const params = new URLSearchParams({
+        select: '*',
+        office_sales_id: `eq.${reportRecord.id}`,
+        order: 'item_name.asc',
+      });
+
+      const response = await fetch(`${OFFICE_SALES_DETAIL_API_URL}?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch report detail: ${response.status} ${response.statusText}`);
+      }
+
+      return (await response.json()) as OfficeSalesDetailRecord[];
+    },
+    enabled: reportRecord !== null,
     staleTime: 1000 * 60 * 5,
   });
 
@@ -504,6 +541,14 @@ const SalesOffice = () => {
   const handleCloseDetail = () => {
     setSelectedRecord(null);
     setDetailCurrentPage(1);
+  };
+
+  const handleOpenReportModal = (record: OfficeSalesRecord) => {
+    setReportRecord(record);
+  };
+
+  const handleCloseReportModal = () => {
+    setReportRecord(null);
   };
 
   const handleOpenAddModal = () => {
@@ -1029,7 +1074,7 @@ const SalesOffice = () => {
   };
 
   useEffect(() => {
-    if (!isAddModalOpen && !isEditModalOpen && !selectedRecord) {
+    if (!isAddModalOpen && !isEditModalOpen && !selectedRecord && !reportRecord) {
       return;
     }
 
@@ -1050,6 +1095,11 @@ const SalesOffice = () => {
 
       if (selectedRecord) {
         handleCloseDetail();
+        return;
+      }
+
+      if (reportRecord) {
+        handleCloseReportModal();
       }
     };
 
@@ -1057,11 +1107,102 @@ const SalesOffice = () => {
     return () => {
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [isAddModalOpen, isEditModalOpen, selectedRecord]);
+  }, [isAddModalOpen, isEditModalOpen, selectedRecord, reportRecord]);
+
+  const formatReceiptDateTitle = (salesDate: string) => {
+    const date = new Date(`${salesDate}T00:00:00`);
+
+    return new Intl.DateTimeFormat('id-ID', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    }).format(date);
+  };
+
+  const formatReceiptFileName = (salesDate: string) => {
+    const date = new Date(`${salesDate}T00:00:00`);
+    const weekday = new Intl.DateTimeFormat('id-ID', { weekday: 'long' }).format(date).toLowerCase().replace(/\s+/g, '_');
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = new Intl.DateTimeFormat('id-ID', { month: 'long' }).format(date).toLowerCase().replace(/\s+/g, '_');
+    const year = String(date.getFullYear());
+
+    return `${weekday}_${day}_${month}_${year}.png`;
+  };
+
+  const handleDownloadReceipt = async () => {
+    if (!reportRecord) {
+      return;
+    }
+
+    const receiptElement = document.getElementById('office-sales-receipt-content');
+    if (!receiptElement) {
+      alert('Konten struk tidak ditemukan.');
+      return;
+    }
+
+    try {
+      const dataUrl = await toPng(receiptElement, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+      });
+
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = formatReceiptFileName(reportRecord.sales_date);
+      link.click();
+    } catch (error) {
+      alert(`Gagal mengunduh struk: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
 
   const detailSensorClass = isDetailSensorOn ? 'select-none blur-sm' : '';
   const addSensorClass = isAddSensorOn ? 'select-none blur-sm' : '';
   const editSensorClass = isEditSensorOn ? 'select-none blur-sm' : '';
+
+  const TALAM_ONGOL_NAMES = new Set(['Talam Ketan Aren', 'Talam Ketan Pandan', 'Talam Pandan Aren', 'Ongol-Ongol']);
+
+  const reportReceiptItems = useMemo(() => {
+    const receiptMap = new Map<
+      string,
+      {
+        id: string;
+        item_name: string;
+        stocks: number;
+        solds: number;
+        leftovers: number;
+        total_cost: number;
+        item_base_prices: number[];
+      }
+    >();
+
+    (reportDetailRecords ?? []).forEach((item) => {
+      const mappedName = TALAM_ONGOL_NAMES.has(item.item_name) ? 'Talam Ongol' : item.item_name;
+      const current = receiptMap.get(mappedName);
+
+      if (!current) {
+        receiptMap.set(mappedName, {
+          id: mappedName,
+          item_name: mappedName,
+          stocks: item.stocks,
+          solds: item.solds,
+          leftovers: item.leftovers ?? 0,
+          total_cost: item.total_cost,
+          item_base_prices: [item.item_base_price],
+        });
+        return;
+      }
+
+      current.stocks += item.stocks;
+      current.solds += item.solds;
+      current.leftovers += item.leftovers ?? 0;
+      current.total_cost += item.total_cost;
+      current.item_base_prices.push(item.item_base_price);
+    });
+
+    return Array.from(receiptMap.values());
+  }, [reportDetailRecords]);
 
   return (
     <div className="page-enter space-y-6">
@@ -1090,12 +1231,13 @@ const SalesOffice = () => {
                   key={location}
                   type="button"
                   onClick={() => handleLocationFilterChange(location)}
-                  className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                  className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
                     isActive
                       ? 'bg-white text-cyan-800 shadow-sm ring-1 ring-cyan-200'
                       : 'text-slate-600 hover:bg-white/70 hover:text-cyan-700'
                   }`}
                 >
+                  <MapPin className="h-3.5 w-3.5" />
                   {location}
                 </button>
               );
@@ -1191,6 +1333,15 @@ const SalesOffice = () => {
                           className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-cyan-300 text-cyan-700 transition-colors hover:bg-cyan-50"
                         >
                           <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenReportModal(record)}
+                          title="Generate report"
+                          aria-label={`Generate report for ${record.selling_location} at ${record.sales_date}`}
+                          className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-violet-300 px-3 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-50"
+                        >
+                          <FileText className="h-4 w-4" />
                         </button>
                       </div>
                     </td>
@@ -1765,15 +1916,17 @@ const SalesOffice = () => {
                 <button
                   type="button"
                   onClick={handleCloseAddModal}
-                  className="flex-1 rounded-lg border cursor-pointer border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                  className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
                 >
+                  <XCircle className="h-4 w-4" />
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleSubmitAddForm}
-                  className="flex-1 rounded-lg cursor-pointer bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700"
+                  className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700"
                 >
+                  <Plus className="h-4 w-4" />
                   Create Sales
                 </button>
               </div>
@@ -2093,17 +2246,107 @@ const SalesOffice = () => {
                   <button
                     type="button"
                     onClick={handleCloseEditModal}
-                    className="flex-1 rounded-lg border cursor-pointer border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                    className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
                   >
+                    <XCircle className="h-4 w-4" />
                     Cancel
                   </button>
                   <button
                     type="button"
                     onClick={handleSubmitEditForm}
                     disabled={isEditSubmitting}
-                    className="flex-1 rounded-lg cursor-pointer bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
+                    <Save className="h-4 w-4" />
                     {isEditSubmitting ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {reportRecord && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
+          <div className="max-h-[92vh] w-[min(96vw,760px)] overflow-y-auto rounded-2xl border border-cyan-100 bg-white/95 p-5 shadow-2xl sm:p-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Report Sales</h2>
+                <p className="mt-1 text-sm text-slate-500">Preview of the sales receipt for office sales data.</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseReportModal}
+                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100"
+                aria-label="Close sales report modal"
+                title="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {isReportDetailLoading || isReportDetailFetching ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">Memuat data struk...</div>
+            ) : (
+              <div className="space-y-4">
+                <div id="office-sales-receipt-content" className="rounded-xl border border-slate-300 bg-white p-4 text-slate-900 sm:p-6">
+                  <div className="border-b border-dashed border-slate-300 pb-3">
+                    <h3 className="text-center text-lg font-bold">Sales - {formatReceiptDateTitle(reportRecord.sales_date)}</h3>
+                  </div>
+
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full min-w-[620px] border-collapse text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-300">
+                          <th className="px-2 py-2 text-left font-semibold">Stok</th>
+                          <th className="px-2 py-2 text-left font-semibold">Produk</th>
+                          <th className="px-2 py-2 text-left font-semibold">Terjual</th>
+                          <th className="px-2 py-2 text-left font-semibold">Perhitungan</th>
+                          <th className="px-2 py-2 text-right font-semibold">Total Harga</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportReceiptItems.map((item) => {
+                          const leftovers = item.leftovers ?? 0;
+                          const leftoverText = leftovers > 0 ? `(sisa ${leftovers})` : '(habis)';
+                          const uniqueBasePrices = Array.from(new Set(item.item_base_prices));
+                          const remarks = uniqueBasePrices.length === 1
+                            ? `${item.solds} x ${new Intl.NumberFormat('id-ID').format(uniqueBasePrices[0] ?? 0)}`
+                            : `${item.solds} x campuran`;
+
+                          return (
+                            <tr key={item.id} className="border-b border-slate-100">
+                              <td className="px-2 py-2">{item.stocks}</td>
+                              <td className="px-2 py-2">{item.item_name}</td>
+                              <td className="px-2 py-2">{leftoverText}</td>
+                              <td className="px-2 py-2">{remarks}</td>
+                              <td className="px-2 py-2 text-right">{formatCurrency(item.total_cost)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="mt-4 border-t border-dashed border-slate-300 pt-3">
+                    <div className="flex items-center justify-between text-base font-bold">
+                      <span>Total</span>
+                      <span>{formatCurrency(reportRecord.total_cost)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleDownloadReceipt();
+                    }}
+                    className="cursor-pointer inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download PNG
                   </button>
                 </div>
               </div>
