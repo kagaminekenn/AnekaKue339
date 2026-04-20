@@ -4,7 +4,7 @@ import { Check, Pencil, Plus, X } from 'lucide-react';
 import Select, { type InputActionMeta, type SingleValue } from 'react-select';
 import Pagination from '../components/Pagination';
 import { supabase } from '../utils/supabase';
-import { SELLING_LOCATIONS } from '../constants/sellingLocations';
+import { SELLING_LOCATIONS } from '../constants/main';
 import {
   getReactSelectClassNames,
   renderHighlightedLabel,

@@ -4,8 +4,8 @@ import { CircleCheck, CircleX, Download, Eye, EyeOff, FileText, MapPin, Minus, P
 import { toPng } from 'html-to-image';
 import Select, { type InputActionMeta, type SingleValue } from 'react-select';
 import Pagination from '../components/Pagination';
-import { SELLING_LOCATIONS } from '../constants/sellingLocations';
-import { ADD_ITEMS_PAGE_SIZE, OFFICE_SALES_API_URL, OFFICE_SALES_DETAIL_API_URL, OFFICE_SALES_DETAIL_WRITE_API_URL } from '../constants/officeSales';
+import { SELLING_LOCATIONS } from '../constants/main';
+import { ADD_ITEMS_PAGE_SIZE, OFFICE_SALES_API_URL, OFFICE_SALES_DETAIL_API_URL, OFFICE_SALES_DETAIL_WRITE_API_URL } from '../constants/main';
 import { PAGE_SIZE, formatCurrency, formatDisplayDate, getStatusBadgeClassName, parseNumberInput, toNullIfZero } from '../utils/helper';
 import { getReactSelectClassNames, renderHighlightedLabel } from '../utils/officePricing';
 import { supabase } from '../utils/supabase';
