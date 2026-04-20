@@ -8,6 +8,7 @@ import {
   DollarSign,
   type LucideIcon,
   User,
+  LogOut,
   ChevronDown,
   ChevronUp,
   X,
@@ -27,9 +28,11 @@ interface SidebarProps {
   onSelectPage: (page: string) => void
   isOpen: boolean
   onClose: () => void
+  userDisplayName?: string | null
+  onLogout?: () => void
 }
 
-const Sidebar = ({ activePage, onSelectPage, isOpen, onClose }: SidebarProps) => {
+const Sidebar = ({ activePage, onSelectPage, isOpen, onClose, userDisplayName, onLogout }: SidebarProps) => {
   const [parameterOpen, setParameterOpen] = useState(activePage === 'Items')
   const [pricingOpen, setPricingOpen] = useState(activePage === 'PricingOffice' || activePage === 'PricingOrder')
   const [salesOpen, setSalesOpen] = useState(activePage === 'SalesOffice' || activePage === 'SalesOrder')
@@ -236,8 +239,18 @@ const Sidebar = ({ activePage, onSelectPage, isOpen, onClose }: SidebarProps) =>
           <div className="text-center">
             <div className="flex items-center justify-center gap-2">
               <User className="h-4 w-4 text-cyan-200" />
-              <p className="text-sm font-medium text-cyan-100">Admin 339</p>
+              <p className="text-sm font-medium text-cyan-100">{userDisplayName || 'Admin 339'}</p>
             </div>
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                className="mt-3 inline-flex items-center gap-2 rounded-lg border border-cyan-700/70 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-900/70"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                Logout
+              </button>
+            )}
           </div>
         </div>
       </div>
