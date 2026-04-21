@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleCheck, CircleX, Download, Eye, EyeOff, FileText, MapPin, Minus, Pencil, Plus, Save, TrendingDown, TrendingUp, X, XCircle, Trash2 } from 'lucide-react';
 import { toPng } from 'html-to-image';
@@ -6,7 +6,7 @@ import Select, { type InputActionMeta, type SingleValue } from 'react-select';
 import Pagination from '../components/Pagination';
 import { SELLING_LOCATIONS } from '../constants/main';
 import { ADD_ITEMS_PAGE_SIZE, OFFICE_SALES_API_URL, OFFICE_SALES_DETAIL_API_URL, OFFICE_SALES_DETAIL_WRITE_API_URL } from '../constants/main';
-import { PAGE_SIZE, formatCurrency, formatDisplayDate, getStatusBadgeClassName, parseNumberInput, toNullIfZero } from '../utils/helper';
+import { PAGE_SIZE, formatCurrency, getStatusBadgeClassName, parseNumberInput, toNullIfZero } from '../utils/helper';
 import { getReactSelectClassNames, renderHighlightedLabel } from '../utils/officePricing';
 import { supabase } from '../utils/supabase';
 import type {
@@ -66,8 +66,40 @@ const SalesOffice = () => {
   const [locationSearchKeyword, setLocationSearchKeyword] = useState('');
   const [productSearchKeyword, setProductSearchKeyword] = useState<Record<string, string>>({});
   const [currentUserDisplayName, setCurrentUserDisplayName] = useState('Admin 339');
+  const addSalesDateRef = useRef<HTMLInputElement | null>(null);
+  const editSalesDateRef = useRef<HTMLInputElement | null>(null);
 
   const queryClient = useQueryClient();
+
+  const openDatePicker = (input: HTMLInputElement | null) => {
+    if (!input) {
+      return;
+    }
+
+    input.focus();
+
+    const pickerInput = input as HTMLInputElement & { showPicker?: () => void };
+    if (typeof pickerInput.showPicker === 'function') {
+      pickerInput.showPicker();
+      return;
+    }
+
+    input.click();
+  };
+
+  const formatSalesDate = (dateString: string | null | undefined) => {
+    if (!dateString) {
+      return '-';
+    }
+
+    const date = new Date(`${dateString}T00:00:00`);
+    return new Intl.DateTimeFormat('en-GB', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    }).format(date);
+  };
 
   useEffect(() => {
     const loadCurrentUserDisplayName = async () => {
@@ -1238,7 +1270,7 @@ const SalesOffice = () => {
           </ol>
         </nav>
         <h1 className="page-title">Office Sales</h1>
-        <p className="page-subtitle">Kelola data penjualan untuk channel office secara terstruktur.</p>
+        <p className="page-subtitle">Manage sales data for channel offices.</p>
       </div>
 
       <div className="glass-panel overflow-hidden rounded-2xl border border-cyan-100">
@@ -1319,7 +1351,7 @@ const SalesOffice = () => {
               <tbody className="divide-y divide-cyan-50 bg-white/80">
                 {records.map((record) => (
                   <tr key={record.id}>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{formatDisplayDate(record.sales_date)}</td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{formatSalesDate(record.sales_date)}</td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.selling_location}</td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.total_stocks}</td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.total_solds}</td>
@@ -1424,7 +1456,7 @@ const SalesOffice = () => {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
                 <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Sales Date</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{formatDisplayDate(selectedRecord.sales_date)}</p>
+                  <p className="mt-1 text-sm font-medium text-slate-900">{formatSalesDate(selectedRecord.sales_date)}</p>
                 </div>
                 <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Selling Location</p>
@@ -1669,12 +1701,22 @@ const SalesOffice = () => {
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">Sales Date</label>
-                  <input
-                    type="date"
-                    value={addFormData.sales_date}
-                    onChange={(e) => handleAddSalesDateChange(e.target.value)}
-                    className="w-full rounded-md border cursor-pointer border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                  />
+                  <div className="relative" onClick={() => openDatePicker(addSalesDateRef.current)}>
+                    <input
+                      type="text"
+                      value={addFormData.sales_date ? formatSalesDate(addFormData.sales_date) : ''}
+                      readOnly
+                      placeholder="dddd, dd mmmm yyyy"
+                      className="w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                    />
+                    <input
+                      ref={addSalesDateRef}
+                      type="date"
+                      value={addFormData.sales_date}
+                      onChange={(e) => handleAddSalesDateChange(e.target.value)}
+                      className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                    />
+                  </div>
                 </div>
 
                 <div>
@@ -2002,12 +2044,22 @@ const SalesOffice = () => {
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">Sales Date</label>
-                    <input
-                      type="date"
-                      value={editFormData.sales_date}
-                      onChange={(e) => handleEditSalesDateChange(e.target.value)}
-                      className="w-full rounded-md border cursor-pointer border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                    />
+                    <div className="relative" onClick={() => openDatePicker(editSalesDateRef.current)}>
+                      <input
+                        type="text"
+                        value={editFormData.sales_date ? formatSalesDate(editFormData.sales_date) : ''}
+                        readOnly
+                        placeholder="dddd, dd mmmm yyyy"
+                        className="w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                      />
+                      <input
+                        ref={editSalesDateRef}
+                        type="date"
+                        value={editFormData.sales_date}
+                        onChange={(e) => handleEditSalesDateChange(e.target.value)}
+                        className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                      />
+                    </div>
                   </div>
 
                   <div>
@@ -2318,7 +2370,8 @@ const SalesOffice = () => {
               <div className="space-y-4">
                 <div id="office-sales-receipt-content" className="rounded-xl border border-slate-300 bg-white p-4 text-slate-900 sm:p-6">
                   <div className="border-b border-dashed border-slate-300 pb-3">
-                    <h3 className="text-center text-lg font-bold">Sales - {formatReceiptDateTitle(reportRecord.sales_date)}</h3>
+                    <h3 className="text-center text-lg font-bold">Penjualan Aneka Kue 339</h3>
+                    <h3 className="text-center text-lg font-bold">{formatReceiptDateTitle(reportRecord.sales_date)}</h3>
                   </div>
 
                   <div className="mt-4 overflow-x-auto">
