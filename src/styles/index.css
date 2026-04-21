@@ -138,6 +138,30 @@ p {
   outline: none;
 }
 
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8;
+  opacity: 1;
+}
+
+input:disabled::placeholder,
+textarea:disabled::placeholder {
+  color: #cbd5e1;
+}
+
+input[type='date'] {
+  color-scheme: light;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 .modern-primary {
   border-radius: 0.75rem;
   background: linear-gradient(130deg, var(--accent), var(--accent-strong));

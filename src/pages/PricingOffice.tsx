@@ -60,6 +60,22 @@ const PricingOffice = () => {
   const endDateRef = useRef<HTMLInputElement | null>(null);
   const queryClient = useQueryClient();
 
+  const openDatePicker = (input: HTMLInputElement | null) => {
+    if (!input) {
+      return;
+    }
+
+    input.focus();
+
+    const pickerInput = input as HTMLInputElement & { showPicker?: () => void };
+    if (typeof pickerInput.showPicker === 'function') {
+      pickerInput.showPicker();
+      return;
+    }
+
+    input.click();
+  };
+
   const {
     data: officePricingQueryData,
     isLoading: isOfficePricingLoading,
@@ -629,9 +645,8 @@ const PricingOffice = () => {
                 <div
                   className="relative"
                   onClick={() => {
-                    if (modalMode === 'add' && startDateRef.current) {
-                      startDateRef.current.showPicker?.();
-                      startDateRef.current.focus();
+                    if (modalMode === 'add') {
+                      openDatePicker(startDateRef.current);
                     }
                   }}
                 >
@@ -639,7 +654,7 @@ const PricingOffice = () => {
                     type="text"
                     value={formData.start_date ? formatDisplayDate(formData.start_date) : ''}
                     readOnly
-                    placeholder="01 January 2026"
+                    placeholder="dd mmmm yyyy"
                     className={`w-full cursor-pointer rounded-md border bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 transition-all ${
                       errors.start_date
                         ? 'animate-pulse border-red-500 ring-2 ring-red-200'
@@ -655,7 +670,7 @@ const PricingOffice = () => {
                       value={formData.start_date}
                       onChange={handleDateChange}
                       max={formData.end_date || undefined}
-                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                      className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
                     />
                   )}
                 </div>
@@ -669,17 +684,14 @@ const PricingOffice = () => {
                 <div
                   className="relative"
                   onClick={() => {
-                    if (endDateRef.current) {
-                      endDateRef.current.showPicker?.();
-                      endDateRef.current.focus();
-                    }
+                    openDatePicker(endDateRef.current);
                   }}
                 >
                   <input
                     type="text"
                     value={formData.end_date ? formatDisplayDate(formData.end_date) : ''}
                     readOnly
-                    placeholder="01 January 2026"
+                    placeholder="dd mmmm yyyy"
                     className={`w-full cursor-pointer rounded-md border bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 transition-all ${
                       errors.end_date
                         ? 'animate-pulse border-red-500 ring-2 ring-red-200'
@@ -698,7 +710,7 @@ const PricingOffice = () => {
                         ? getNextDateValue(formData.start_date) || undefined
                         : formData.start_date || undefined
                     }
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
                   />
                 </div>
                 {errors.end_date && <p className="mt-1 text-sm text-red-600 animate-pulse">{errors.end_date}</p>}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Eye, EyeOff, Pencil, Plus, Send, X } from 'lucide-react';
 import Select, { type InputActionMeta, type SingleValue } from 'react-select';
@@ -130,6 +130,25 @@ const Order = () => {
   const [editFormErrors, setEditFormErrors] = useState<EditOrderPricingFormErrors>({});
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
   const [isProfitSensorOn, setIsProfitSensorOn] = useState(true);
+  const addStartDateRef = useRef<HTMLInputElement | null>(null);
+  const addEndDateRef = useRef<HTMLInputElement | null>(null);
+  const editEndDateRef = useRef<HTMLInputElement | null>(null);
+
+  const openDatePicker = (input: HTMLInputElement | null) => {
+    if (!input) {
+      return;
+    }
+
+    input.focus();
+
+    const pickerInput = input as HTMLInputElement & { showPicker?: () => void };
+    if (typeof pickerInput.showPicker === 'function') {
+      pickerInput.showPicker();
+      return;
+    }
+
+    input.click();
+  };
 
   const { data: orderPricingData, isLoading, isFetching } = useQuery<OrderPricingQueryResult>({
     queryKey: ['order-pricing', currentPage, sortKey, sortDirection, selectedItemIdFilter],
@@ -830,7 +849,7 @@ const Order = () => {
                   value={addFormData.min_order}
                   onChange={(e) => handleAddMinOrderChange(e.target.value)}
                   placeholder="0"
-                  className={`w-full rounded-md border px-3 py-2 placeholder:text-slate-200 focus:outline-none focus:ring-2 transition-all ${
+                  className={`w-full rounded-md border px-3 py-2 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-all ${
                     addFormErrors.min_order
                       ? 'animate-pulse border-red-500 ring-2 ring-red-200'
                       : 'border-slate-300 focus:ring-blue-500'
@@ -852,7 +871,7 @@ const Order = () => {
                     value={addFormData.selling_price}
                     onChange={(e) => handleAddSellingPriceChange(e.target.value)}
                     disabled={!addFormData.item_id}
-                    className={`w-full rounded-md border py-2 pl-10 pr-3 placeholder:text-slate-200 focus:outline-none focus:ring-2 transition-all ${
+                    className={`w-full rounded-md border py-2 pl-10 pr-3 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-all ${
                       addFormErrors.selling_price
                         ? 'animate-pulse border-red-500 ring-2 ring-red-200'
                         : 'border-slate-300 focus:ring-blue-500'
@@ -888,19 +907,29 @@ const Order = () => {
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">Start Date</label>
-                <input
-                  type="date"
-                  name="start_date"
-                  autoComplete="off"
-                  value={addFormData.start_date}
-                  onChange={handleAddDateChange}
-                  max={addFormData.end_date || undefined}
-                  className={`w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 transition-all ${
-                    addFormErrors.start_date
-                      ? 'animate-pulse border-red-500 ring-2 ring-red-200'
-                      : 'border-slate-300 focus:ring-blue-500'
-                  } ${addFormData.start_date ? 'text-slate-900' : 'text-slate-200'}`}
-                />
+                <div className="relative" onClick={() => openDatePicker(addStartDateRef.current)}>
+                  <input
+                    type="text"
+                    value={addFormData.start_date ? formatDisplayDate(addFormData.start_date) : ''}
+                    readOnly
+                    placeholder="dd mmmm yyyy"
+                    className={`w-full cursor-pointer rounded-md border bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 transition-all ${
+                      addFormErrors.start_date
+                        ? 'animate-pulse border-red-500 ring-2 ring-red-200'
+                        : 'border-slate-300 focus:ring-blue-500'
+                    }`}
+                  />
+                  <input
+                    ref={addStartDateRef}
+                    type="date"
+                    name="start_date"
+                    autoComplete="off"
+                    value={addFormData.start_date}
+                    onChange={handleAddDateChange}
+                    max={addFormData.end_date || undefined}
+                    className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                  />
+                </div>
                 {addFormErrors.start_date && (
                   <p className="mt-1 animate-pulse text-sm text-red-600">{addFormErrors.start_date}</p>
                 )}
@@ -908,19 +937,29 @@ const Order = () => {
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">End Date (Optional)</label>
-                <input
-                  type="date"
-                  name="end_date"
-                  autoComplete="off"
-                  value={addFormData.end_date}
-                  onChange={handleAddDateChange}
-                  min={addFormData.start_date || undefined}
-                  className={`w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 transition-all ${
-                    addFormErrors.end_date
-                      ? 'animate-pulse border-red-500 ring-2 ring-red-200'
-                      : 'border-slate-300 focus:ring-blue-500'
-                  } ${addFormData.end_date ? 'text-slate-900' : 'text-slate-200'}`}
-                />
+                <div className="relative" onClick={() => openDatePicker(addEndDateRef.current)}>
+                  <input
+                    type="text"
+                    value={addFormData.end_date ? formatDisplayDate(addFormData.end_date) : ''}
+                    readOnly
+                    placeholder="dd mmmm yyyy"
+                    className={`w-full cursor-pointer rounded-md border bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 transition-all ${
+                      addFormErrors.end_date
+                        ? 'animate-pulse border-red-500 ring-2 ring-red-200'
+                        : 'border-slate-300 focus:ring-blue-500'
+                    }`}
+                  />
+                  <input
+                    ref={addEndDateRef}
+                    type="date"
+                    name="end_date"
+                    autoComplete="off"
+                    value={addFormData.end_date}
+                    onChange={handleAddDateChange}
+                    min={addFormData.start_date || undefined}
+                    className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                  />
+                </div>
                 {addFormErrors.end_date && (
                   <p className="mt-1 animate-pulse text-sm text-red-600">{addFormErrors.end_date}</p>
                 )}
@@ -982,19 +1021,29 @@ const Order = () => {
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">End Date</label>
-                <input
-                  type="date"
-                  name="end_date"
-                  autoComplete="off"
-                  value={editFormData.end_date}
-                  onChange={(e) => handleEditDateChange(e.target.value)}
-                  min={editingRecord.start_date || undefined}
-                  className={`w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 transition-all ${
-                    editFormErrors.end_date
-                      ? 'animate-pulse border-red-500 ring-2 ring-red-200'
-                      : 'border-slate-300 focus:ring-blue-500'
-                  } ${editFormData.end_date ? 'text-slate-900' : 'text-slate-400'}`}
-                />
+                <div className="relative" onClick={() => openDatePicker(editEndDateRef.current)}>
+                  <input
+                    type="text"
+                    value={editFormData.end_date ? formatDisplayDate(editFormData.end_date) : ''}
+                    readOnly
+                    placeholder="dd mmmm yyyy"
+                    className={`w-full cursor-pointer rounded-md border bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 transition-all ${
+                      editFormErrors.end_date
+                        ? 'animate-pulse border-red-500 ring-2 ring-red-200'
+                        : 'border-slate-300 focus:ring-blue-500'
+                    }`}
+                  />
+                  <input
+                    ref={editEndDateRef}
+                    type="date"
+                    name="end_date"
+                    autoComplete="off"
+                    value={editFormData.end_date}
+                    onChange={(e) => handleEditDateChange(e.target.value)}
+                    min={editingRecord.start_date || undefined}
+                    className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                  />
+                </div>
                 {editFormErrors.end_date && (
                   <p className="mt-1 animate-pulse text-sm text-red-600">{editFormErrors.end_date}</p>
                 )}

@@ -35,6 +35,22 @@ const Items = () => {
   const endDateRef = useRef<HTMLInputElement | null>(null);
   const queryClient = useQueryClient();
 
+  const openDatePicker = (input: HTMLInputElement | null) => {
+    if (!input) {
+      return;
+    }
+
+    input.focus();
+
+    const pickerInput = input as HTMLInputElement & { showPicker?: () => void };
+    if (typeof pickerInput.showPicker === 'function') {
+      pickerInput.showPicker();
+      return;
+    }
+
+    input.click();
+  };
+
   const { data: itemsQueryData, isLoading: loading } = useQuery<ItemsQueryResult>({
     queryKey: ['items', currentPage],
     queryFn: async () => {
@@ -352,9 +368,8 @@ const Items = () => {
                 <div
                   className="relative"
                   onClick={() => {
-                    if (modalMode === 'add' && startDateRef.current) {
-                      startDateRef.current.showPicker?.();
-                      startDateRef.current.focus();
+                    if (modalMode === 'add') {
+                      openDatePicker(startDateRef.current);
                     }
                   }}
                 >
@@ -362,7 +377,7 @@ const Items = () => {
                     type="text"
                     value={formData.start_date ? formatDisplayDate(formData.start_date) : ''}
                     readOnly
-                    placeholder="01 January 2026"
+                    placeholder="dd mmmm yyyy"
                     className={`w-full px-3 py-2 border rounded-md bg-white text-slate-900 focus:outline-none focus:ring-2 cursor-pointer transition-all ${
                       errors.start_date
                         ? 'border-red-500 ring-2 ring-red-200 animate-pulse'
@@ -378,7 +393,7 @@ const Items = () => {
                       value={formData.start_date}
                       onChange={handleDateChange}
                       max={formData.end_date || undefined}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
                     />
                   )}
                 </div>
@@ -393,17 +408,14 @@ const Items = () => {
                 <div
                   className="relative"
                   onClick={() => {
-                    if (endDateRef.current) {
-                      endDateRef.current.showPicker?.();
-                      endDateRef.current.focus();
-                    }
+                    openDatePicker(endDateRef.current);
                   }}
                 >
                   <input
                     type="text"
                     value={formData.end_date ? formatDisplayDate(formData.end_date) : ''}
                     readOnly
-                    placeholder="01 January 2026"
+                    placeholder="dd mmmm yyyy"
                     className={`w-full px-3 py-2 border rounded-md bg-white text-slate-900 focus:outline-none focus:ring-2 cursor-pointer transition-all ${
                       errors.end_date
                         ? 'border-red-500 ring-2 ring-red-200 animate-pulse'
@@ -418,7 +430,7 @@ const Items = () => {
                     value={formData.end_date}
                     onChange={handleDateChange}
                     min={modalMode === 'edit' ? getNextDateValue(formData.start_date) || undefined : formData.start_date || undefined}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
                   />
                 </div>
                 {errors.end_date && (
