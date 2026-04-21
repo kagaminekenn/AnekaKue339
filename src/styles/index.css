@@ -179,3 +179,28 @@ input[type='date']::-webkit-calendar-picker-indicator:hover {
 .modern-primary:active {
   transform: translateY(0);
 }
+
+.app-tooltip {
+  position: fixed;
+  z-index: 9999;
+  max-width: 280px;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(15, 23, 42, 0.94);
+  color: #f8fafc;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 90ms ease, transform 90ms ease;
+  white-space: normal;
+}
+
+.app-tooltip--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
