@@ -7,6 +7,7 @@ import {
   List,
   DollarSign,
   type LucideIcon,
+  Users,
   User,
   LogOut,
   ChevronDown,
@@ -33,7 +34,7 @@ interface SidebarProps {
 }
 
 const Sidebar = ({ activePage, onSelectPage, isOpen, onClose, userDisplayName, onLogout }: SidebarProps) => {
-  const [parameterOpen, setParameterOpen] = useState(activePage === 'Items')
+  const [parameterOpen, setParameterOpen] = useState(activePage === 'Items' || activePage === 'LoyalCustomer')
   const [pricingOpen, setPricingOpen] = useState(activePage === 'PricingOffice' || activePage === 'PricingOrder')
   const [salesOpen, setSalesOpen] = useState(activePage === 'SalesOffice' || activePage === 'SalesOrder')
 
@@ -44,6 +45,7 @@ const Sidebar = ({ activePage, onSelectPage, isOpen, onClose, userDisplayName, o
 
   const parameterItems: MenuItem[] = [
     { name: 'Items', key: 'Items', icon: List },
+    { name: 'Loyal Customer', key: 'LoyalCustomer', icon: Users },
   ]
 
   const pricingItems: MenuItem[] = [
