@@ -9,6 +9,7 @@ import LoyalCustomer from './pages/LoyalCustomer.tsx'
 import SalesOffice from './pages/SalesOffice.tsx'
 import SalesOrder from './pages/SalesOrder.tsx'
 import Sidebar from './components/Sidebar'
+import GlobalTooltip from './components/GlobalTooltip.tsx'
 import Login from './pages/Login.tsx'
 import { supabase } from './utils/supabase.ts'
 import { clearEncryptedSession, loadEncryptedSession, saveEncryptedSession, touchEncryptedSession } from './utils/authSession.ts'
@@ -175,11 +176,21 @@ function App() {
   }
 
   if (isBootstrapping) {
-    return <div className="min-h-screen" />
+    return (
+      <>
+        <div className="min-h-screen" />
+        <GlobalTooltip />
+      </>
+    )
   }
 
   if (!isAuthenticated) {
-    return <Login onSubmit={handleLogin} />
+    return (
+      <>
+        <Login onSubmit={handleLogin} />
+        <GlobalTooltip />
+      </>
+    )
   }
 
   return (
@@ -216,6 +227,7 @@ function App() {
           {pageComponents[activePage] ?? <Home />}
         </div>
       </main>
+      <GlobalTooltip />
     </div>
   )
 }
