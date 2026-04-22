@@ -1,4 +1,132 @@
+import { toJpeg } from 'html-to-image';
 import type { ItemFormData, ItemFormErrors } from '../types/items';
+
+type DownloadElementAsImageOptions = {
+  elementId: string;
+  fileName: string;
+  minWidth?: number;
+  quality?: number;
+};
+
+const REPORT_EXPORT_BACKGROUND = '#ffffff';
+
+const normalizeCloneForImageExport = (rootElement: HTMLElement) => {
+  rootElement.style.width = '100%';
+  rootElement.style.maxWidth = 'none';
+  rootElement.style.margin = '0';
+  rootElement.style.backgroundColor = REPORT_EXPORT_BACKGROUND;
+  rootElement.style.overflow = 'visible';
+  rootElement.style.transform = 'none';
+  rootElement.style.boxShadow = 'none';
+  rootElement.style.borderRadius = '0';
+
+  rootElement.querySelectorAll<HTMLElement>('*').forEach((element) => {
+    element.style.animation = 'none';
+    element.style.transition = 'none';
+    element.style.caretColor = 'transparent';
+
+    if (element.tagName === 'TABLE') {
+      element.style.width = '100%';
+      element.style.maxWidth = 'none';
+      element.style.borderCollapse = 'collapse';
+    }
+
+    if (element.tagName === 'TH' || element.tagName === 'TD') {
+      element.style.wordBreak = 'break-word';
+      element.style.whiteSpace = 'normal';
+    }
+
+    if (element.style.overflowX === 'auto' || element.style.overflowX === 'scroll') {
+      element.style.overflowX = 'visible';
+    }
+
+    if (element.style.overflowY === 'auto' || element.style.overflowY === 'scroll') {
+      element.style.overflowY = 'visible';
+    }
+  });
+};
+
+const waitForImageLayout = async () => {
+  if ('fonts' in document) {
+    await (document as Document & { fonts?: FontFaceSet }).fonts?.ready;
+  }
+
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
+};
+
+export const downloadElementAsJpg = async ({
+  elementId,
+  fileName,
+  minWidth = 960,
+  quality = 0.9,
+}: DownloadElementAsImageOptions) => {
+  const sourceElement = document.getElementById(elementId);
+  if (!sourceElement) {
+    throw new Error('Konten report tidak ditemukan.');
+  }
+
+  const clonedElement = sourceElement.cloneNode(true) as HTMLElement;
+  normalizeCloneForImageExport(clonedElement);
+
+  const sourceRect = sourceElement.getBoundingClientRect();
+  const exportWidth = Math.max(
+    Math.ceil(sourceElement.scrollWidth),
+    Math.ceil(sourceRect.width),
+    minWidth,
+  );
+
+  const tempContainer = document.createElement('div');
+  tempContainer.style.position = 'fixed';
+  tempContainer.style.left = '-100000px';
+  tempContainer.style.top = '0';
+  tempContainer.style.width = `${exportWidth}px`;
+  tempContainer.style.padding = '0';
+  tempContainer.style.margin = '0';
+  tempContainer.style.backgroundColor = REPORT_EXPORT_BACKGROUND;
+  tempContainer.style.pointerEvents = 'none';
+  tempContainer.style.zIndex = '-1';
+  tempContainer.style.overflow = 'visible';
+  tempContainer.appendChild(clonedElement);
+
+  document.body.appendChild(tempContainer);
+
+  try {
+    await waitForImageLayout();
+
+    const canvasWidth = Math.max(
+      exportWidth,
+      Math.ceil(tempContainer.scrollWidth),
+      Math.ceil(clonedElement.scrollWidth),
+    );
+    const canvasHeight = Math.max(
+      Math.ceil(tempContainer.scrollHeight),
+      Math.ceil(clonedElement.scrollHeight),
+    );
+
+    const dataUrl = await toJpeg(tempContainer, {
+      quality,
+      cacheBust: true,
+      pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+      backgroundColor: REPORT_EXPORT_BACKGROUND,
+      canvasWidth,
+      canvasHeight,
+      skipAutoScale: true,
+    });
+
+    const anchor = document.createElement('a');
+    anchor.href = dataUrl;
+    anchor.download = fileName.endsWith('.jpg') ? fileName : `${fileName}.jpg`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+  } finally {
+    document.body.removeChild(tempContainer);
+  }
+};
 
 export const PAGE_SIZE = 5;
 

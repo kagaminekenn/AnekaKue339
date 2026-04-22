@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BanknoteArrowUp, BanknoteX, CalendarDays, CheckCircle, CheckCircle2, Clock3, Download, Eye, EyeOff, FileText, Minus, MinusCircle, PackageCheck, PackageX, Pencil, Plus, Search, Trash2, TrendingDown, TrendingUp, X, XCircle, Send } from 'lucide-react';
-import { toPng } from 'html-to-image';
 import Select, { type InputActionMeta, type SingleValue } from 'react-select';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -17,7 +16,7 @@ import {
   TABLE_PAGE_SIZE,
   type DeliveryType,
 } from '../constants/salesOrder';
-import { formatCurrency, formatPriceInput, parseNumberInput, parsePriceInput } from '../utils/helper';
+import { downloadElementAsJpg, formatCurrency, formatPriceInput, parseNumberInput, parsePriceInput } from '../utils/helper';
 import { getReactSelectClassNames, renderHighlightedLabel } from '../utils/officePricing';
 import {
   formatDateTimeForStorage,
@@ -167,8 +166,6 @@ const DEFAULT_ADD_FORM_DATA: AddFormData = {
   is_paid: false,
   is_delivered: false,
 };
-
-const ORDER_REPORT_EXPORT_WIDTH = 960;
 
 const StatusIcon = ({ value, label }: { value: boolean | null; label: string }) => {
   const isPaid = label.toLowerCase() === 'paid';
@@ -550,29 +547,14 @@ const SalesOrder = () => {
       return;
     }
 
-    const element = document.getElementById('order-receipt-content');
-    if (!element) {
-      alert('Konten struk tidak ditemukan.');
-      return;
-    }
-
     try {
-      const dataUrl = await toPng(element, {
-        cacheBust: true,
-        pixelRatio: 2,
-        backgroundColor: '#ffffff',
-        width: ORDER_REPORT_EXPORT_WIDTH,
-        style: {
-          width: `${ORDER_REPORT_EXPORT_WIDTH}px`,
-          maxWidth: 'none',
-        },
-      });
-
-      const link = document.createElement('a');
-      link.href = dataUrl;
       const iso = new Date(reportRecord.delivery_datetime ?? '').toISOString().split('T')[0] ?? 'unknown';
-      link.download = `order_receipt_${reportRecord.name}_${iso}.png`;
-      link.click();
+      await downloadElementAsJpg({
+        elementId: 'order-receipt-content',
+        fileName: `order_receipt_${reportRecord.name}_${iso}.jpg`,
+        minWidth: 1080,
+        quality: 0.9,
+      });
     } catch (error) {
       alert(`Gagal mengunduh struk: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -583,26 +565,7 @@ const SalesOrder = () => {
       return;
     }
 
-    const element = document.getElementById('order-cost-content');
-    if (!element) {
-      alert('Konten laporan biaya tidak ditemukan.');
-      return;
-    }
-
     try {
-      const dataUrl = await toPng(element, {
-        cacheBust: true,
-        pixelRatio: 2,
-        backgroundColor: '#ffffff',
-        width: ORDER_REPORT_EXPORT_WIDTH,
-        style: {
-          width: `${ORDER_REPORT_EXPORT_WIDTH}px`,
-          maxWidth: 'none',
-        },
-      });
-
-      const link = document.createElement('a');
-      link.href = dataUrl;
       const iso = new Date(reportRecord.delivery_datetime ?? '').toISOString().split('T')[0] ?? 'unknown';
       link.download = `order_${iso}.png`;
       link.click();
@@ -2357,7 +2320,7 @@ const SalesOrder = () => {
                       className="w-full cursor-pointer inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700"
                     >
                       <Download className="h-4 w-4" />
-                      Download Struk PNG
+                      Download Struk JPG
                     </button>
                   </div>
                 )}
@@ -2422,7 +2385,7 @@ const SalesOrder = () => {
                       className="w-full cursor-pointer inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700"
                     >
                       <Download className="h-4 w-4" />
-                      Download Laporan Biaya PNG
+                      Download Laporan Biaya JPG
                     </button>
                   </div>
                 )}
