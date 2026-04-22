@@ -567,12 +567,8 @@ const SalesOrder = () => {
 
     try {
       const iso = new Date(reportRecord.delivery_datetime ?? '').toISOString().split('T')[0] ?? 'unknown';
-      await downloadElementAsJpg({
-        elementId: 'order-cost-content',
-        fileName: `order_cost_${reportRecord.name}_${iso}.jpg`,
-        minWidth: 1080,
-        quality: 0.9,
-      });
+      link.download = `order_${iso}.png`;
+      link.click();
     } catch (error) {
       alert(`Gagal mengunduh laporan biaya: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -2339,10 +2335,6 @@ const SalesOrder = () => {
                           <div className="flex items-center gap-2">
                             <CalendarDays className="h-4 w-4 text-cyan-700" />
                             <span>{reportDateTimeParts.date}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Clock3 className="h-4 w-4 text-cyan-700" />
-                            <span>{reportDateTimeParts.time}</span>
                           </div>
                         </div>
                       </div>
