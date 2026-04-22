@@ -1,13 +1,11 @@
-const OFFICE_REPORT_EXPORT_WIDTH = 760;
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleCheck, CircleX, Download, Eye, EyeOff, FileText, MapPin, Minus, Pencil, Plus, Save, TrendingDown, TrendingUp, X, XCircle, Trash2 } from 'lucide-react';
-import { toPng } from 'html-to-image';
 import Select, { type InputActionMeta, type SingleValue } from 'react-select';
 import Pagination from '../components/Pagination';
 import { SELLING_LOCATIONS } from '../constants/main';
 import { ADD_ITEMS_PAGE_SIZE, OFFICE_SALES_API_URL, OFFICE_SALES_DETAIL_API_URL, OFFICE_SALES_DETAIL_WRITE_API_URL } from '../constants/main';
-import { PAGE_SIZE, formatCurrency, getStatusBadgeClassName, parseNumberInput, toNullIfZero } from '../utils/helper';
+import { PAGE_SIZE, downloadElementAsJpg, formatCurrency, getStatusBadgeClassName, parseNumberInput, toNullIfZero } from '../utils/helper';
 import { getReactSelectClassNames, renderHighlightedLabel } from '../utils/officePricing';
 import { supabase } from '../utils/supabase';
 import type {
@@ -1180,7 +1178,7 @@ const SalesOffice = () => {
     const month = new Intl.DateTimeFormat('id-ID', { month: '2-digit' }).format(date);
     const year = String(date.getFullYear());
 
-    return `${year}_${month}_${day}.png`;
+    return `${year}_${month}_${day}.jpg`;
   };
 
   const handleDownloadReceipt = async () => {
@@ -1188,28 +1186,13 @@ const SalesOffice = () => {
       return;
     }
 
-    const receiptElement = document.getElementById('office-sales-receipt-content');
-    if (!receiptElement) {
-      alert('Konten struk tidak ditemukan.');
-      return;
-    }
-
     try {
-      const dataUrl = await toPng(receiptElement, {
-        cacheBust: true,
-        pixelRatio: 2,
-        backgroundColor: '#ffffff',
-        width: OFFICE_REPORT_EXPORT_WIDTH,
-        style: {
-          width: `${OFFICE_REPORT_EXPORT_WIDTH}px`,
-          maxWidth: 'none',
-        },
+      await downloadElementAsJpg({
+        elementId: 'office-sales-receipt-content',
+        fileName: formatReceiptFileName(reportRecord.sales_date),
+        minWidth: 920,
+        quality: 0.9,
       });
-
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = formatReceiptFileName(reportRecord.sales_date);
-      link.click();
     } catch (error) {
       alert(`Gagal mengunduh struk: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -2380,7 +2363,7 @@ const SalesOffice = () => {
                   </div>
 
                   <div className="mt-4 overflow-x-auto">
-                    <table className="w-full min-w-[620px] border-collapse text-sm">
+                    <table className="w-full border-collapse text-sm">
                       <thead>
                         <tr className="border-b border-slate-300">
                           <th className="px-2 py-2 text-left font-semibold">Stok</th>
@@ -2430,7 +2413,7 @@ const SalesOffice = () => {
                     className="cursor-pointer inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700"
                   >
                     <Download className="h-4 w-4" />
-                    Download PNG
+                    Download JPG
                   </button>
                 </div>
               </div>
