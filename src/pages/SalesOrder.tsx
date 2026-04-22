@@ -5,8 +5,27 @@ import Select, { type InputActionMeta, type SingleValue } from 'react-select';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Pagination from '../components/Pagination';
+import { ADD_ITEMS_PAGE_SIZE } from '../constants/main';
+import {
+  DEFAULT_DELIVERY_DESTINATION,
+  DEFAULT_DELIVERY_TYPE,
+  DELIVERY_DESTINATION_OPTIONS,
+  DELIVERY_TYPE_OPTIONS,
+  ORDER_DETAIL_EXCLUDED_FIELDS,
+  PLACEHOLDER_WORDS,
+  TABLE_PAGE_SIZE,
+  type DeliveryType,
+} from '../constants/salesOrder';
 import { formatCurrency, formatPriceInput, parseNumberInput, parsePriceInput } from '../utils/helper';
 import { getReactSelectClassNames, renderHighlightedLabel } from '../utils/officePricing';
+import {
+  formatDateTimeForStorage,
+  formatDeliveryDateTime,
+  localDateTimeToUtcIso,
+  parseDeliveryTypeValue,
+  randomRowId,
+  toLocalWhatsappFromRecord,
+} from '../utils/salesOrder';
 import { supabase } from '../utils/supabase';
 
 type OrderSalesRecord = {
@@ -100,69 +119,39 @@ type AddFormData = {
   is_delivered: boolean;
 };
 
+type ModalMode = 'add' | 'edit';
+
+type EditableOrderSalesRecord = {
+  id: number;
+  name: string;
+  whatsapp: string;
+  delivery_datetime: string;
+  delivery_address: string;
+  delivery_type: string;
+  remark: string | null;
+  delivery_cost: number | null;
+  is_paid: boolean;
+  is_delivered: boolean;
+};
+
+type EditableOrderSalesDetailRecord = {
+  id: number;
+  order_sales_id: number;
+  order_pricing_id: number;
+  quantity: number;
+  is_free: boolean;
+};
+
 type CustomerMode = 'existing' | 'new';
-type DeliveryType = 'Online Delivery' | 'Kurir 339' | 'Pickup';
 
 type SimpleSelectOption = {
   value: string;
   label: string;
 };
 
-const formatDeliveryDateTime = (dateTimeString: string | null) => {
-  if (!dateTimeString) {
-    return {
-      date: '-',
-      time: '-',
-    };
-  }
-
-  const date = new Date(dateTimeString);
-
-  if (Number.isNaN(date.getTime())) {
-    return {
-      date: '-',
-      time: '-',
-    };
-  }
-
-  const dateFormatter = new Intl.DateTimeFormat('en-GB', {
-    weekday: 'long',
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-
-  const timeFormatter = new Intl.DateTimeFormat('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-  });
-
-  return {
-    date: dateFormatter.format(date),
-    time: timeFormatter.format(date),
-  };
-};
-
-const PLACEHOLDER_WORDS = ['Name', 'Whatsapp'];
 type PlaceholderPhase = 'typing' | 'pausing' | 'deleting';
 type SortField = 'name' | 'whatsapp' | 'delivery_datetime' | 'delivery_type' | 'total_items' | 'total_price' | 'is_paid' | 'is_delivered';
 type SortDirection = 'asc' | 'desc';
-
-const ORDER_DETAIL_EXCLUDED_FIELDS = new Set(['id', 'created_date', 'updated_date', 'user_update', 'is_paid', 'is_delivered']);
-const TABLE_PAGE_SIZE = 3;
-const ADD_ITEMS_PAGE_SIZE = 3;
-
-const DELIVERY_TYPE_OPTIONS: DeliveryType[] = ['Online Delivery', 'Kurir 339', 'Pickup'];
-const DELIVERY_DESTINATION_OPTIONS: Record<DeliveryType, string[]> = {
-  'Online Delivery': ['339', 'Customer'],
-  'Kurir 339': ['Jatiasih', 'Cipendawa', 'Menara Brilian', 'Wisma GKBI'],
-  Pickup: ['Jatiasih', 'Cipendawa', 'Menara Brilian', 'Wisma GKBI'],
-};
-
-const DEFAULT_DELIVERY_TYPE = DELIVERY_TYPE_OPTIONS[0];
-const DEFAULT_DELIVERY_DESTINATION = DELIVERY_DESTINATION_OPTIONS[DEFAULT_DELIVERY_TYPE][0] ?? '';
 
 const DEFAULT_ADD_FORM_DATA: AddFormData = {
   customer_name: '',
@@ -175,29 +164,6 @@ const DEFAULT_ADD_FORM_DATA: AddFormData = {
   delivery_cost: '',
   is_paid: false,
   is_delivered: false,
-};
-
-const toLocalWhatsappFromRecord = (value: string) => {
-  const compact = value.replace(/[^\d+]/g, '');
-  let localNumber = compact.replace(/^\+?62/, '');
-
-  if (localNumber.startsWith('0')) {
-    localNumber = localNumber.slice(1);
-  }
-
-  return localNumber.replace(/\D/g, '');
-};
-
-const randomRowId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-
-const formatDateTimeForStorage = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
 const StatusIcon = ({ value, label }: { value: boolean | null; label: string }) => {
@@ -235,6 +201,9 @@ const SalesOrder = () => {
   const [sortField, setSortField] = useState<SortField>('delivery_datetime');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<ModalMode>('add');
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [isEditLoading, setIsEditLoading] = useState(false);
   const [customerMode, setCustomerMode] = useState<CustomerMode>('existing');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [isAddSubmitting, setIsAddSubmitting] = useState(false);
@@ -250,11 +219,15 @@ const SalesOrder = () => {
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [detailCurrentPage, setDetailCurrentPage] = useState(1);
   const [isDetailSensorOn, setIsDetailSensorOn] = useState(true);
+  const [currentUserDisplayName, setCurrentUserDisplayName] = useState('Admin 339');
   const [placeholderWordIndex, setPlaceholderWordIndex] = useState(0);
   const [placeholderCharCount, setPlaceholderCharCount] = useState(0);
   const [placeholderPhase, setPlaceholderPhase] = useState<PlaceholderPhase>('typing');
 
   const resetAddForm = () => {
+    setModalMode('add');
+    setEditingOrderId(null);
+    setIsEditLoading(false);
     setCustomerMode('existing');
     setSelectedCustomerId('');
     setAddFormData(DEFAULT_ADD_FORM_DATA);
@@ -270,6 +243,7 @@ const SalesOrder = () => {
 
   const handleOpenAddModal = () => {
     resetAddForm();
+    setModalMode('add');
     setIsAddModalOpen(true);
   };
 
@@ -280,6 +254,70 @@ const SalesOrder = () => {
 
     setIsAddModalOpen(false);
     resetAddForm();
+  };
+
+  const handleOpenEditModal = async (orderId: number) => {
+    resetAddForm();
+    setModalMode('edit');
+    setEditingOrderId(orderId);
+    setCustomerMode('new');
+    setIsAddModalOpen(true);
+    setIsEditLoading(true);
+
+    try {
+      const { data: orderData, error: orderError } = await supabase
+        .from('order_sales')
+        .select('id,name,whatsapp,delivery_datetime,delivery_address,delivery_type,remark,delivery_cost,is_paid,is_delivered')
+        .eq('id', orderId)
+        .single();
+
+      if (orderError) {
+        throw orderError;
+      }
+
+      const { data: detailData, error: detailError } = await supabase
+        .from('order_sales_detail')
+        .select('id,order_sales_id,order_pricing_id,quantity,is_free')
+        .eq('order_sales_id', orderId)
+        .order('id', { ascending: true });
+
+      if (detailError) {
+        throw detailError;
+      }
+
+      const orderRecord = orderData as EditableOrderSalesRecord;
+      const detailRecords = (detailData ?? []) as EditableOrderSalesDetailRecord[];
+      const parsedDeliveryType = parseDeliveryTypeValue(orderRecord.delivery_type);
+
+      setAddFormData({
+        customer_name: orderRecord.name ?? '',
+        whatsapp: toLocalWhatsappFromRecord(orderRecord.whatsapp ?? ''),
+        delivery_datetime: orderRecord.delivery_datetime ? formatDateTimeForStorage(new Date(orderRecord.delivery_datetime)) : '',
+        delivery_address: orderRecord.delivery_address ?? '',
+        delivery_type: parsedDeliveryType.type,
+        delivery_destination: parsedDeliveryType.destination,
+        remark: orderRecord.remark ?? '',
+        delivery_cost: orderRecord.delivery_cost !== null ? formatPriceInput(String(orderRecord.delivery_cost)) : '',
+        is_paid: Boolean(orderRecord.is_paid),
+        is_delivered: Boolean(orderRecord.is_delivered),
+      });
+
+      setAddFormItems(
+        detailRecords.map((item) => ({
+          id: `edit-${item.id}`,
+          quantity: item.quantity,
+          order_pricing_id: String(item.order_pricing_id),
+          is_free: Boolean(item.is_free),
+        })),
+      );
+    } catch (error) {
+      console.error('Error loading order sales edit data:', error);
+      alert(`Gagal memuat data edit: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setIsAddModalOpen(false);
+      resetAddForm();
+    } finally {
+      setIsEditLoading(false);
+    }
   };
 
   const handleCustomerModeChange = (mode: CustomerMode) => {
@@ -474,6 +512,24 @@ const SalesOrder = () => {
 
     return sortDirection === 'asc' ? '\u2191' : '\u2193';
   };
+
+  useEffect(() => {
+    const loadCurrentUserDisplayName = async () => {
+      const { data } = await supabase.auth.getUser();
+      const userMetadata = data.user?.user_metadata;
+
+      if (!userMetadata || typeof userMetadata !== 'object') {
+        return;
+      }
+
+      const displayName = (userMetadata as { display_name?: unknown }).display_name;
+      if (typeof displayName === 'string' && displayName.trim()) {
+        setCurrentUserDisplayName(displayName.trim());
+      }
+    };
+
+    void loadCurrentUserDisplayName();
+  }, []);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -959,10 +1015,12 @@ const SalesOrder = () => {
 
     try {
       const deliveryTypeCombined = `${addFormData.delivery_type} (${addFormData.delivery_destination})`;
+      const deliveryDateTimeUtc = localDateTimeToUtcIso(addFormData.delivery_datetime);
+      const nowIso = new Date().toISOString();
       const orderSalesPayload = {
         name: addFormData.customer_name.trim(),
         whatsapp: `+62${addFormData.whatsapp.trim()}`,
-        delivery_datetime: addFormData.delivery_datetime,
+        delivery_datetime: deliveryDateTimeUtc,
         delivery_address: addFormData.delivery_address.trim(),
         delivery_type: deliveryTypeCombined,
         remark: addFormData.remark.trim() || null,
@@ -974,7 +1032,70 @@ const SalesOrder = () => {
         is_delivered: addFormData.is_delivered,
         total_cost: addSummaryTotals.totalCost,
         net_income: addComputedNetIncome,
+        user_update: currentUserDisplayName,
+        ...(modalMode === 'edit'
+          ? {
+              updated_date: nowIso,
+            }
+          : {
+              created_date: nowIso,
+            }),
       };
+
+      const detailPayload = addFormItems.map((item) => {
+        const computed = getAddItemComputedValues(item);
+
+        return {
+          order_pricing_id: Number.parseInt(item.order_pricing_id, 10),
+          quantity: item.quantity,
+          is_free: item.is_free,
+          total_price: computed.totalPrice,
+          total_cost: computed.totalCost,
+          net_income: computed.netIncome,
+        };
+      });
+
+      if (modalMode === 'edit') {
+        if (!editingOrderId) {
+          throw new Error('No selected order to edit.');
+        }
+
+        const { error: updateOrderError } = await supabase
+          .from('order_sales')
+          .update(orderSalesPayload)
+          .eq('id', editingOrderId);
+
+        if (updateOrderError) {
+          throw updateOrderError;
+        }
+
+        const { error: deleteDetailError } = await supabase
+          .from('order_sales_detail')
+          .delete()
+          .eq('order_sales_id', editingOrderId);
+
+        if (deleteDetailError) {
+          throw deleteDetailError;
+        }
+
+        const editDetailPayload = detailPayload.map((item) => ({
+          ...item,
+          order_sales_id: editingOrderId,
+        }));
+
+        const { error: recreateDetailError } = await supabase
+          .from('order_sales_detail')
+          .insert(editDetailPayload);
+
+        if (recreateDetailError) {
+          throw recreateDetailError;
+        }
+
+        await queryClient.invalidateQueries({ queryKey: ['order-sales'] });
+        await queryClient.invalidateQueries({ queryKey: ['order-sales-detail'] });
+        handleCloseAddModal();
+        return;
+      }
 
       const { data: createdRows, error: createOrderError } = await supabase
         .from('order_sales')
@@ -991,23 +1112,14 @@ const SalesOrder = () => {
         throw new Error('Failed to create order_sales record.');
       }
 
-      const detailPayload = addFormItems.map((item) => {
-        const computed = getAddItemComputedValues(item);
-
-        return {
-          order_sales_id: createdOrderId,
-          order_pricing_id: Number.parseInt(item.order_pricing_id, 10),
-          quantity: item.quantity,
-          is_free: item.is_free,
-          total_price: computed.totalPrice,
-          total_cost: computed.totalCost,
-          net_income: computed.netIncome,
-        };
-      });
+      const addDetailPayload = detailPayload.map((item) => ({
+        ...item,
+        order_sales_id: createdOrderId,
+      }));
 
       const { error: createDetailError } = await supabase
         .from('order_sales_detail')
-        .insert(detailPayload);
+        .insert(addDetailPayload);
 
       if (createDetailError) {
         await supabase
@@ -1288,7 +1400,7 @@ const SalesOrder = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => alert(`Fitur Edit untuk ${record.name} akan segera tersedia.`)}
+                          onClick={() => handleOpenEditModal(record.id)}
                           title="Edit"
                           aria-label={`Edit ${record.name}`}
                           className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-cyan-200 text-cyan-700 transition-colors hover:bg-cyan-50"
@@ -1332,8 +1444,12 @@ const SalesOrder = () => {
           <div className="max-h-[92vh] w-[min(96vw,1180px)] max-w-none overflow-y-auto rounded-2xl border border-cyan-100 bg-white p-5 shadow-2xl sm:p-6">
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">Add Order Sales</h2>
-                <p className="mt-1 text-sm text-slate-500">Create order sales data with customer, delivery, pricing, and item details.</p>
+                <h2 className="text-xl font-bold text-slate-900">{modalMode === 'edit' ? 'Edit Order Sales' : 'Add Order Sales'}</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {modalMode === 'edit'
+                    ? 'Update order sales data with customer, delivery, pricing, and item details.'
+                    : 'Create order sales data with customer, delivery, pricing, and item details.'}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -1363,36 +1479,48 @@ const SalesOrder = () => {
               </div>
             </div>
 
+            {isEditLoading ? (
+              <div className="rounded-2xl border border-cyan-100 p-10 text-center text-slate-500">Loading order data...</div>
+            ) : (
             <div className="space-y-6">
               <div className="rounded-2xl border border-cyan-100 bg-cyan-50/40 p-4 sm:p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-cyan-800">Customer</h3>
-                  <div className="inline-flex rounded-lg border border-cyan-200 bg-white p-1">
-                    <button
-                      type="button"
-                      onClick={() => handleCustomerModeChange('existing')}
-                      className={`rounded-md cursor-pointer px-3 py-1.5 text-sm font-medium transition ${
-                        customerMode === 'existing' ? 'bg-cyan-600 text-white' : 'text-slate-600 hover:bg-cyan-50'
-                      }`}
-                    >
-                      Existing
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleCustomerModeChange('new')}
-                      className={`rounded-md cursor-pointer px-3 py-1.5 text-sm font-medium transition ${
-                        customerMode === 'new' ? 'bg-cyan-600 text-white' : 'text-slate-600 hover:bg-cyan-50'
-                      }`}
-                    >
-                      New
-                    </button>
-                  </div>
+                  {modalMode !== 'edit' && (
+                    <div className="inline-flex rounded-lg border border-cyan-200 bg-white p-1">
+                      <button
+                        type="button"
+                        onClick={() => handleCustomerModeChange('existing')}
+                        className={`rounded-md cursor-pointer px-3 py-1.5 text-sm font-medium transition ${
+                          customerMode === 'existing' ? 'bg-cyan-600 text-white' : 'text-slate-600 hover:bg-cyan-50'
+                        }`}
+                      >
+                        Existing
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCustomerModeChange('new')}
+                        className={`rounded-md cursor-pointer px-3 py-1.5 text-sm font-medium transition ${
+                          customerMode === 'new' ? 'bg-cyan-600 text-white' : 'text-slate-600 hover:bg-cyan-50'
+                        }`}
+                      >
+                        New
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">Name</label>
-                    {customerMode === 'existing' ? (
+                    {modalMode === 'edit' ? (
+                      <input
+                        type="text"
+                        value={addFormData.customer_name}
+                        readOnly
+                        className="w-full rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-slate-700"
+                      />
+                    ) : customerMode === 'existing' ? (
                       <Select<SimpleSelectOption, false>
                         options={customerOptions}
                         value={selectedCustomerOption}
@@ -1755,14 +1883,15 @@ const SalesOrder = () => {
                 <button
                   type="button"
                   onClick={handleSubmitAddForm}
-                  disabled={isAddSubmitting}
+                  disabled={isAddSubmitting || isEditLoading}
                   className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Send className="h-4 w-4" />
-                  {isAddSubmitting ? 'Submitting...' : 'Submit'}
+                  {isAddSubmitting ? (modalMode === 'edit' ? 'Saving...' : 'Submitting...') : (modalMode === 'edit' ? 'Save Changes' : 'Submit')}
                 </button>
               </div>
             </div>
+            )}
           </div>
         </div>
       )}
