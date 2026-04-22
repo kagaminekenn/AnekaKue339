@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { BanknoteArrowUp, BanknoteX, CalendarDays, CheckCircle, CheckCircle2, Clock3, Eye, EyeOff, Minus, MinusCircle, PackageCheck, PackageX, Pencil, Plus, Search, Trash2, TrendingDown, TrendingUp, X, XCircle, Send } from 'lucide-react';
+import { BanknoteArrowUp, BanknoteX, CalendarDays, CheckCircle, CheckCircle2, Clock3, Download, Eye, EyeOff, FileText, Minus, MinusCircle, PackageCheck, PackageX, Pencil, Plus, Search, Trash2, TrendingDown, TrendingUp, X, XCircle, Send } from 'lucide-react';
+import { toPng } from 'html-to-image';
 import Select, { type InputActionMeta, type SingleValue } from 'react-select';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -33,6 +34,7 @@ type OrderSalesRecord = {
   name: string;
   whatsapp: string;
   delivery_datetime: string | null;
+  delivery_address: string | null;
   delivery_type: string | null;
   is_paid: boolean | null;
   is_delivered: boolean | null;
@@ -166,6 +168,8 @@ const DEFAULT_ADD_FORM_DATA: AddFormData = {
   is_delivered: false,
 };
 
+const ORDER_REPORT_EXPORT_WIDTH = 960;
+
 const StatusIcon = ({ value, label }: { value: boolean | null; label: string }) => {
   const isPaid = label.toLowerCase() === 'paid';
   const isDelivered = label.toLowerCase() === 'delivered';
@@ -220,6 +224,8 @@ const SalesOrder = () => {
   const [detailCurrentPage, setDetailCurrentPage] = useState(1);
   const [isDetailSensorOn, setIsDetailSensorOn] = useState(true);
   const [currentUserDisplayName, setCurrentUserDisplayName] = useState('Admin 339');
+  const [reportRecord, setReportRecord] = useState<OrderSalesRecord | null>(null);
+  const [reportTabIndex, setReportTabIndex] = useState<'receipt' | 'cost'>('receipt');
   const [placeholderWordIndex, setPlaceholderWordIndex] = useState(0);
   const [placeholderCharCount, setPlaceholderCharCount] = useState(0);
   const [placeholderPhase, setPlaceholderPhase] = useState<PlaceholderPhase>('typing');
@@ -494,6 +500,117 @@ const SalesOrder = () => {
     setDetailCurrentPage(1);
   };
 
+  const handleOpenReportModal = (record: OrderSalesRecord) => {
+    setReportRecord(record);
+    setReportTabIndex('receipt');
+  };
+
+  const handleCloseReportModal = () => {
+    setReportRecord(null);
+  };
+
+  const formatReceiptDateTimeParts = (deliveryDateTime: string | null) => {
+    if (!deliveryDateTime) {
+      return {
+        date: '-',
+        time: '-',
+      };
+    }
+
+    const date = new Date(deliveryDateTime);
+    if (Number.isNaN(date.getTime())) {
+      return {
+        date: '-',
+        time: '-',
+      };
+    }
+
+    return {
+      date: new Intl.DateTimeFormat('id-ID', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      }).format(date),
+      time: `${new Intl.DateTimeFormat('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(date)} WIB`,
+    };
+  };
+
+  const reportDateTimeParts = useMemo(
+    () => formatReceiptDateTimeParts(reportRecord?.delivery_datetime ?? null),
+    [reportRecord?.delivery_datetime],
+  );
+
+  const handleDownloadReceipt = async () => {
+    if (!reportRecord) {
+      return;
+    }
+
+    const element = document.getElementById('order-receipt-content');
+    if (!element) {
+      alert('Konten struk tidak ditemukan.');
+      return;
+    }
+
+    try {
+      const dataUrl = await toPng(element, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        width: ORDER_REPORT_EXPORT_WIDTH,
+        style: {
+          width: `${ORDER_REPORT_EXPORT_WIDTH}px`,
+          maxWidth: 'none',
+        },
+      });
+
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      const iso = new Date(reportRecord.delivery_datetime ?? '').toISOString().split('T')[0] ?? 'unknown';
+      link.download = `order_receipt_${reportRecord.name}_${iso}.png`;
+      link.click();
+    } catch (error) {
+      alert(`Gagal mengunduh struk: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleDownloadCostReport = async () => {
+    if (!reportRecord) {
+      return;
+    }
+
+    const element = document.getElementById('order-cost-content');
+    if (!element) {
+      alert('Konten laporan biaya tidak ditemukan.');
+      return;
+    }
+
+    try {
+      const dataUrl = await toPng(element, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        width: ORDER_REPORT_EXPORT_WIDTH,
+        style: {
+          width: `${ORDER_REPORT_EXPORT_WIDTH}px`,
+          maxWidth: 'none',
+        },
+      });
+
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      const iso = new Date(reportRecord.delivery_datetime ?? '').toISOString().split('T')[0] ?? 'unknown';
+      link.download = `order_cost_${reportRecord.name}_${iso}.png`;
+      link.click();
+    } catch (error) {
+      alert(`Gagal mengunduh laporan biaya: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   const handleSort = (field: SortField) => {
     setCurrentPage(1);
     if (field === sortField) {
@@ -619,7 +736,7 @@ const SalesOrder = () => {
 
       let query = supabase
         .from('order_sales')
-        .select('id,name,whatsapp,delivery_datetime,delivery_type,is_paid,is_delivered,total_items,total_price', {
+        .select('id,name,whatsapp,delivery_datetime,delivery_address,delivery_type,is_paid,is_delivered,total_items,total_price', {
           count: 'exact',
         })
         .order(sortField, { ascending: sortDirection === 'asc', nullsFirst: false })
@@ -763,6 +880,33 @@ const SalesOrder = () => {
       };
     },
     enabled: selectedOrderId !== null,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const {
+    data: reportDetailRecords,
+    isLoading: isReportDetailLoading,
+    isFetching: isReportDetailFetching,
+  } = useQuery<OrderSalesDetailItemViewRecord[]>({
+    queryKey: ['order-sales-report-detail', reportRecord?.id],
+    queryFn: async () => {
+      if (!reportRecord) {
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .from('order_sales_detail_view')
+        .select('id,order_sales_id,order_pricing_id,quantity,total_price,total_cost,is_free,net_income,selling_price,profit,item_name,base_price')
+        .eq('order_sales_id', reportRecord.id)
+        .order('id', { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+
+      return (data ?? []) as OrderSalesDetailItemViewRecord[];
+    },
+    enabled: reportRecord !== null,
     staleTime: 1000 * 60 * 5,
   });
 
@@ -1406,6 +1550,15 @@ const SalesOrder = () => {
                           className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-cyan-200 text-cyan-700 transition-colors hover:bg-cyan-50"
                         >
                           <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenReportModal(record)}
+                          title="Generate report"
+                          aria-label={`Generate report for ${record.name}`}
+                          className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-violet-300 px-3 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-50"
+                        >
+                          <FileText className="h-4 w-4" />
                         </button>
                         <button
                           type="button"
@@ -2059,6 +2212,226 @@ const SalesOrder = () => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {reportRecord && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
+          <div className="max-h-[92vh] w-[min(96vw,960px)] max-w-none overflow-y-auto rounded-2xl border border-cyan-100 bg-white/95 p-5 shadow-2xl sm:p-6">
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Generate Report</h2>
+                <p className="mt-1 text-sm text-slate-500">Preview order receipt and cost report.</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseReportModal}
+                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100"
+                aria-label="Close report modal"
+                title="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {isReportDetailLoading || isReportDetailFetching ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">Loading report data...</div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex gap-2 border-b border-cyan-100">
+                  <button
+                    type="button"
+                    onClick={() => setReportTabIndex('receipt')}
+                    className={`px-4 py-3 font-medium transition-colors ${
+                      reportTabIndex === 'receipt'
+                        ? 'border-b-2 border-cyan-500 text-cyan-700'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Order Receipt
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReportTabIndex('cost')}
+                    className={`px-4 py-3 font-medium transition-colors ${
+                      reportTabIndex === 'cost'
+                        ? 'border-b-2 border-cyan-500 text-cyan-700'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Order Cost
+                  </button>
+                </div>
+
+                {reportTabIndex === 'receipt' && (
+                  <div className="space-y-4">
+                    <div id="order-receipt-content" className="rounded-xl border border-slate-300 bg-white p-6 text-slate-900">
+                      <div className="border-b border-dashed border-slate-300 pb-4">
+                        <h3 className="text-center text-lg font-bold">Struk Pesanan</h3>
+                        <p className="mt-2 text-center text-sm text-slate-600">Aneka Kue 339</p>
+                      </div>
+
+                      <div className="mt-6 space-y-4">
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="rounded-lg border border-cyan-100 bg-cyan-50/60 p-3">
+                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Nama</p>
+                            <p className="mt-1 text-sm font-medium">{reportRecord.name || '-'}</p>
+                          </div>
+                          <div className="rounded-lg border border-cyan-100 bg-cyan-50/60 p-3">
+                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">WhatsApp</p>
+                            <p className="mt-1 text-sm font-medium">{reportRecord.whatsapp || '-'}</p>
+                          </div>
+                          <div className="rounded-lg border border-cyan-100 bg-cyan-50/60 p-3">
+                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Jenis Pengiriman</p>
+                            <p className="mt-1 text-sm font-medium">{reportRecord.delivery_type || '-'}</p>
+                          </div>
+                          <div className="col-span-3">
+                            <div className="grid grid-cols-3 gap-4">
+                              <div className="col-span-2 rounded-lg border border-cyan-100 bg-cyan-50/60 p-3">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Alamat Pengiriman</p>
+                                <p className="mt-1 text-sm font-medium">{reportRecord.delivery_address || '-'}</p>
+                              </div>
+                              <div className="rounded-lg border border-cyan-100 bg-cyan-50/60 p-3 text-sm font-medium text-slate-700">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Tanggal Pengiriman</p>
+                                <div className="mt-1 flex items-center gap-2 leading-normal">
+                                  <CalendarDays className="h-4 w-4 text-cyan-700" />
+                                  <span className="whitespace-nowrap">{reportDateTimeParts.date}</span>
+                                </div>
+                                <div className="mt-1 flex items-center gap-2 leading-normal">
+                                  <Clock3 className="h-4 w-4 text-cyan-700" />
+                                  <span className="whitespace-nowrap">{reportDateTimeParts.time}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-6">
+                        <h4 className="text-sm font-semibold text-slate-900">Item</h4>
+                        <div className="mt-3 overflow-x-auto">
+                          <table className="w-full border-collapse text-sm">
+                            <thead>
+                              <tr className="border-b border-slate-300">
+                                <th className="px-2 py-2 text-left font-semibold">Item</th>
+                                <th className="px-2 py-2 text-center font-semibold">Qty</th>
+                                <th className="px-2 py-2 text-right font-semibold">Harga</th>
+                                <th className="px-2 py-2 text-right font-semibold">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(reportDetailRecords ?? []).map((item) => (
+                                <tr key={item.id} className="border-b border-slate-100">
+                                  <td className="px-2 py-2">{item.item_name}</td>
+                                  <td className="px-2 py-2 text-center">{item.quantity}</td>
+                                  <td className="px-2 py-2 text-right">{formatCurrency(item.selling_price)}</td>
+                                  <td className="px-2 py-2 text-right">{formatCurrency(item.total_price)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      <div className="mt-6 border-t border-dashed border-slate-300 pt-4">
+                        <div className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 text-base">
+                          <p className="m-0 whitespace-nowrap">Total Item:</p>
+                          <p className="m-0 whitespace-nowrap text-right font-medium">{reportRecord.total_items ?? 0}</p>
+
+                          <p className="m-0 whitespace-nowrap">Total Harga:</p>
+                          <p className="m-0 whitespace-nowrap text-right font-medium">{formatCurrency(reportRecord.total_price ?? 0)}</p>
+                        </div>
+                        <div className="mt-3 grid grid-cols-[1fr_auto] items-center gap-x-4 border-t border-slate-200 pt-3 text-lg font-bold">
+                          <p className="m-0 whitespace-nowrap">Harga Akhir:</p>
+                          <p className="m-0 whitespace-nowrap text-right">{formatCurrency(reportRecord.total_price ?? 0)}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleDownloadReceipt();
+                      }}
+                      className="w-full cursor-pointer inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download Struk PNG
+                    </button>
+                  </div>
+                )}
+
+                {reportTabIndex === 'cost' && (
+                  <div className="space-y-4">
+                    <div id="order-cost-content" className="rounded-xl border border-slate-300 bg-white p-6 text-slate-900">
+                      <div className="border-b border-dashed border-slate-300 pb-4">
+                        <h3 className="text-center text-lg font-bold">Laporan Biaya</h3>
+                        <p className="mt-2 text-center text-sm text-slate-600">Aneka Kue 339</p>
+                        <div className="mt-2 flex flex-col items-center gap-1 text-sm font-medium text-slate-700">
+                          <div className="flex items-center gap-2">
+                            <CalendarDays className="h-4 w-4 text-cyan-700" />
+                            <span>{reportDateTimeParts.date}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock3 className="h-4 w-4 text-cyan-700" />
+                            <span>{reportDateTimeParts.time}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-6">
+                        <h4 className="text-sm font-semibold text-slate-900 mb-3">Biaya Item</h4>
+                        <div className="overflow-x-auto">
+                          <table className="w-full border-collapse text-sm">
+                            <thead>
+                              <tr className="border-b border-slate-300">
+                                <th className="px-2 py-2 text-left font-semibold">Item</th>
+                                <th className="px-2 py-2 text-center font-semibold">Qty</th>
+                                <th className="px-2 py-2 text-right font-semibold">Harga Pokok</th>
+                                <th className="px-2 py-2 text-right font-semibold">Total Biaya</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(reportDetailRecords ?? []).map((item) => (
+                                <tr key={item.id} className="border-b border-slate-100">
+                                  <td className="px-2 py-2">{item.item_name}</td>
+                                  <td className="px-2 py-2 text-center">{item.quantity}</td>
+                                  <td className="px-2 py-2 text-right">{formatCurrency(item.base_price)}</td>
+                                  <td className="px-2 py-2 text-right">{formatCurrency(item.total_cost)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      <div className="mt-6 border-t border-dashed border-slate-300 pt-4">
+                        <div className="flex items-center justify-between text-lg font-bold">
+                          <span>Total Biaya:</span>
+                          <span>
+                            {formatCurrency(
+                              (reportDetailRecords ?? []).reduce((sum, item) => sum + item.total_cost, 0)
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleDownloadCostReport();
+                      }}
+                      className="w-full cursor-pointer inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download Laporan Biaya PNG
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

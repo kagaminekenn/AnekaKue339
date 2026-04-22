@@ -1,3 +1,4 @@
+const OFFICE_REPORT_EXPORT_WIDTH = 760;
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleCheck, CircleX, Download, Eye, EyeOff, FileText, MapPin, Minus, Pencil, Plus, Save, TrendingDown, TrendingUp, X, XCircle, Trash2 } from 'lucide-react';
@@ -1175,12 +1176,11 @@ const SalesOffice = () => {
 
   const formatReceiptFileName = (salesDate: string) => {
     const date = new Date(`${salesDate}T00:00:00`);
-    const weekday = new Intl.DateTimeFormat('id-ID', { weekday: 'long' }).format(date).toLowerCase().replace(/\s+/g, '_');
     const day = String(date.getDate()).padStart(2, '0');
-    const month = new Intl.DateTimeFormat('id-ID', { month: 'long' }).format(date).toLowerCase().replace(/\s+/g, '_');
+    const month = new Intl.DateTimeFormat('id-ID', { month: '2-digit' }).format(date);
     const year = String(date.getFullYear());
 
-    return `${weekday}_${day}_${month}_${year}.png`;
+    return `${year}_${month}_${day}.png`;
   };
 
   const handleDownloadReceipt = async () => {
@@ -1199,6 +1199,11 @@ const SalesOffice = () => {
         cacheBust: true,
         pixelRatio: 2,
         backgroundColor: '#ffffff',
+        width: OFFICE_REPORT_EXPORT_WIDTH,
+        style: {
+          width: `${OFFICE_REPORT_EXPORT_WIDTH}px`,
+          maxWidth: 'none',
+        },
       });
 
       const link = document.createElement('a');
@@ -2365,7 +2370,7 @@ const SalesOffice = () => {
             </div>
 
             {isReportDetailLoading || isReportDetailFetching ? (
-              <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">Memuat data struk...</div>
+              <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">Loading report data...</div>
             ) : (
               <div className="space-y-4">
                 <div id="office-sales-receipt-content" className="rounded-xl border border-slate-300 bg-white p-4 text-slate-900 sm:p-6">
@@ -2380,7 +2385,7 @@ const SalesOffice = () => {
                         <tr className="border-b border-slate-300">
                           <th className="px-2 py-2 text-left font-semibold">Stok</th>
                           <th className="px-2 py-2 text-left font-semibold">Produk</th>
-                          <th className="px-2 py-2 text-left font-semibold">Terjual</th>
+                          <th className="px-2 py-2 text-left font-semibold">Keterangan</th>
                           <th className="px-2 py-2 text-left font-semibold">Perhitungan</th>
                           <th className="px-2 py-2 text-right font-semibold">Total Harga</th>
                         </tr>
