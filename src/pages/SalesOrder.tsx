@@ -35,6 +35,7 @@ type OrderSalesRecord = {
   delivery_datetime: string | null;
   delivery_address: string | null;
   delivery_type: string | null;
+  delivery_cost: number | null;
   is_paid: boolean | null;
   is_delivered: boolean | null;
   total_items: number;
@@ -473,7 +474,7 @@ const SalesOrder = () => {
 
           if (updatedItem.order_pricing_id) {
             const selectedPricing = addPricingRows.find((pricing) => String(pricing.id) === updatedItem.order_pricing_id);
-            const isQuantityCompatible = selectedPricing ? selectedPricing.min_order >= updatedItem.quantity : false;
+            const isQuantityCompatible = selectedPricing ? updatedItem.quantity >= selectedPricing.min_order : false;
 
             if (!isQuantityCompatible) {
               updatedItem.order_pricing_id = '';
@@ -542,6 +543,19 @@ const SalesOrder = () => {
     [reportRecord?.delivery_datetime],
   );
 
+  const reportDeliveryCost = useMemo(() => {
+    if (!reportRecord || reportRecord.delivery_cost === null) {
+      return null;
+    }
+
+    return reportRecord.delivery_cost;
+  }, [reportRecord]);
+
+  const reportFinalPrice = useMemo(
+    () => (reportRecord?.total_price ?? 0) + (reportDeliveryCost ?? 0),
+    [reportRecord?.total_price, reportDeliveryCost],
+  );
+
   const handleDownloadReceipt = async () => {
     if (!reportRecord) {
       return;
@@ -567,8 +581,12 @@ const SalesOrder = () => {
 
     try {
       const iso = new Date(reportRecord.delivery_datetime ?? '').toISOString().split('T')[0] ?? 'unknown';
-      link.download = `order_${iso}.png`;
-      link.click();
+      await downloadElementAsJpg({
+        elementId: 'order-cost-content',
+        fileName: `order_cost_report_${reportRecord.name}_${iso}.jpg`,
+        minWidth: 1080,
+        quality: 0.9,
+      });
     } catch (error) {
       alert(`Gagal mengunduh laporan biaya: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -699,7 +717,7 @@ const SalesOrder = () => {
 
       let query = supabase
         .from('order_sales')
-        .select('id,name,whatsapp,delivery_datetime,delivery_address,delivery_type,is_paid,is_delivered,total_items,total_price', {
+        .select('id,name,whatsapp,delivery_datetime,delivery_address,delivery_type,delivery_cost,is_paid,is_delivered,total_items,total_price', {
           count: 'exact',
         })
         .order(sortField, { ascending: sortDirection === 'asc', nullsFirst: false })
@@ -943,19 +961,26 @@ const SalesOrder = () => {
           return acc;
         }
 
-        const seenItemNames = new Set<string>();
-        const filteredRows = addPricingRows.filter((option) => option.min_order >= row.quantity);
-
-        acc[row.id] = filteredRows.reduce<AddProductOption[]>((options, rowOption) => {
+        const filteredRows = addPricingRows.filter((option) => option.min_order <= row.quantity);
+        const bestOptionByItemName = filteredRows.reduce<Map<string, AddOrderPricingRow>>((map, rowOption) => {
           const normalizedName = rowOption.item_name.trim().toLowerCase();
 
-          if (!normalizedName || seenItemNames.has(normalizedName)) {
-            return options;
+          if (!normalizedName) {
+            return map;
           }
 
-          seenItemNames.add(normalizedName);
+          const existingOption = map.get(normalizedName);
 
-          options.push({
+          if (!existingOption || rowOption.min_order > existingOption.min_order) {
+            map.set(normalizedName, rowOption);
+          }
+
+          return map;
+        }, new Map<string, AddOrderPricingRow>());
+
+        acc[row.id] = Array.from(bestOptionByItemName.values())
+          .sort((a, b) => a.item_name.localeCompare(b.item_name, 'id', { sensitivity: 'base' }))
+          .map((rowOption) => ({
             value: String(rowOption.id),
             label: rowOption.item_name,
             order_pricing_id: rowOption.id,
@@ -963,10 +988,7 @@ const SalesOrder = () => {
             min_order: rowOption.min_order,
             selling_price: rowOption.selling_price,
             profit: rowOption.profit,
-          });
-
-          return options;
-        }, []);
+          }));
 
         return acc;
       }, {}),
@@ -1038,7 +1060,15 @@ const SalesOrder = () => {
     };
   }, [addFormItems, addFormData.delivery_cost]);
 
-  const addComputedNetIncome = addSummaryTotals.totalPrice - addSummaryTotals.totalCost - addSummaryTotals.deliveryCost;
+  const addComputedNetIncome = useMemo(() => {
+    const itemNetIncomeTotal = addSummaryTotals.netIncome;
+
+    if (addFormData.delivery_type === 'Kurir 339') {
+      return itemNetIncomeTotal + addSummaryTotals.deliveryCost;
+    }
+
+    return itemNetIncomeTotal;
+  }, [addSummaryTotals.netIncome, addSummaryTotals.deliveryCost, addFormData.delivery_type]);
 
   const paginatedAddFormItems = useMemo(() => {
     const start = (addItemsCurrentPage - 1) * ADD_ITEMS_PAGE_SIZE;
@@ -1747,7 +1777,7 @@ const SalesOrder = () => {
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">Remark</label>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">Notes</label>
                     <textarea
                       rows={3}
                       value={addFormData.remark}
@@ -2304,10 +2334,17 @@ const SalesOrder = () => {
 
                           <p className="m-0 whitespace-nowrap">Total Harga:</p>
                           <p className="m-0 whitespace-nowrap text-right font-medium">{formatCurrency(reportRecord.total_price ?? 0)}</p>
+
+                          {reportDeliveryCost !== null && (
+                            <>
+                              <p className="m-0 whitespace-nowrap">Biaya Kirim:</p>
+                              <p className="m-0 whitespace-nowrap text-right font-medium">{formatCurrency(reportDeliveryCost)}</p>
+                            </>
+                          )}
                         </div>
                         <div className="mt-3 grid grid-cols-[1fr_auto] items-center gap-x-4 border-t border-slate-200 pt-3 text-lg font-bold">
                           <p className="m-0 whitespace-nowrap">Harga Akhir:</p>
-                          <p className="m-0 whitespace-nowrap text-right">{formatCurrency(reportRecord.total_price ?? 0)}</p>
+                          <p className="m-0 whitespace-nowrap text-right">{formatCurrency(reportFinalPrice)}</p>
                         </div>
                       </div>
                     </div>

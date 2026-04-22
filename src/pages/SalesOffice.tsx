@@ -1219,6 +1219,10 @@ const SalesOffice = () => {
     >();
 
     (reportDetailRecords ?? []).forEach((item) => {
+      if (item.is_free) {
+        return;
+      }
+
       const mappedName = TALAM_ONGOL_NAMES.has(item.item_name) ? 'Talam Ongol' : item.item_name;
       const current = receiptMap.get(mappedName);
 
@@ -1244,6 +1248,11 @@ const SalesOffice = () => {
 
     return Array.from(receiptMap.values());
   }, [reportDetailRecords]);
+
+  const reportReceiptTotalCost = useMemo(
+    () => reportReceiptItems.reduce((sum, item) => sum + item.total_cost, 0),
+    [reportReceiptItems],
+  );
 
   return (
     <div className="page-enter space-y-6">
@@ -2399,7 +2408,7 @@ const SalesOffice = () => {
                   <div className="mt-4 border-t border-dashed border-slate-300 pt-3">
                     <div className="flex items-center justify-between text-base font-bold">
                       <span>Total</span>
-                      <span>{formatCurrency(reportRecord.total_cost)}</span>
+                      <span>{formatCurrency(reportReceiptTotalCost)}</span>
                     </div>
                   </div>
                 </div>
