@@ -11,7 +11,7 @@ export const ORDER_DETAIL_EXCLUDED_FIELDS = new Set([
   'is_delivered',
 ]);
 
-export const TABLE_PAGE_SIZE = 3;
+export const TABLE_PAGE_SIZE = 5;
 
 export const DELIVERY_TYPE_OPTIONS: DeliveryType[] = ['Online Delivery', 'Kurir 339', 'Pickup'];
 
