@@ -209,6 +209,7 @@ const SalesOrder = () => {
   const [customerMode, setCustomerMode] = useState<CustomerMode>('existing');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [isAddSubmitting, setIsAddSubmitting] = useState(false);
+  const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null);
   const [isAddSensorOn, setIsAddSensorOn] = useState(true);
   const [whatsappPrefixWarning, setWhatsappPrefixWarning] = useState(false);
   const [customerSearchKeyword, setCustomerSearchKeyword] = useState('');
@@ -505,6 +506,60 @@ const SalesOrder = () => {
 
   const handleCloseReportModal = () => {
     setReportRecord(null);
+  };
+
+  const handleDeleteOrder = async (record: OrderSalesRecord) => {
+    if (deletingOrderId !== null) {
+      return;
+    }
+
+    const isConfirmed = window.confirm(
+      `Delete order for ${record.name || 'this customer'}?\n\nThis action cannot be undone.`,
+    );
+
+    if (!isConfirmed) {
+      return;
+    }
+
+    setDeletingOrderId(record.id);
+
+    try {
+      const { error: deleteDetailError } = await supabase
+        .from('order_sales_detail')
+        .delete()
+        .eq('order_sales_id', record.id);
+
+      if (deleteDetailError) {
+        throw deleteDetailError;
+      }
+
+      const { error: deleteOrderError } = await supabase
+        .from('order_sales')
+        .delete()
+        .eq('id', record.id);
+
+      if (deleteOrderError) {
+        throw deleteOrderError;
+      }
+
+      if (selectedOrderId === record.id) {
+        handleCloseDetail();
+      }
+
+      if (reportRecord?.id === record.id) {
+        handleCloseReportModal();
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['order-sales'] });
+      await queryClient.invalidateQueries({ queryKey: ['order-sales-detail'] });
+      await queryClient.invalidateQueries({ queryKey: ['order-sales-detail-items'] });
+      await queryClient.invalidateQueries({ queryKey: ['order-sales-report-detail'] });
+    } catch (error) {
+      console.error('Error deleting order sales:', error);
+      alert(`Failed to delete order sales: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setDeletingOrderId(null);
+    }
   };
 
   const waitForNextPaint = async () => {
@@ -1582,10 +1637,13 @@ const SalesOrder = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => alert(`Fitur Delete untuk ${record.name} akan segera tersedia.`)}
+                          onClick={() => {
+                            void handleDeleteOrder(record);
+                          }}
+                          disabled={deletingOrderId === record.id}
                           title="Delete"
                           aria-label={`Delete ${record.name}`}
-                          className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-rose-200 text-rose-700 transition-colors hover:bg-rose-50"
+                          className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-rose-200 text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
