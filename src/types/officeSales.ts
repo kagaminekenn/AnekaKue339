@@ -52,6 +52,7 @@ export interface OfficeSalesDetailRecord {
   office_pricing_id: number;
   stocks: number;
   solds: number;
+  covers: number;
   leftovers: number | null;
   is_ordered: boolean;
   is_free: boolean;
@@ -78,6 +79,7 @@ export interface AddFormItem {
   office_pricing_id: string;
   stocks: number;
   solds: number;
+  covers: number;
   leftovers: number;
   is_ordered: boolean;
   is_free: boolean;

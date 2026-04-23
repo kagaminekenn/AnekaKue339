@@ -30,3 +30,15 @@ Thumbs.db
 
 # TypeScript cache
 *.tsbuildinfo
+
+# Cache and temporary files
+.cache/
+.temp/
+tmp/
+temp/
+.eslintcache
+
+# Local runtime data
+*.pid
+*.seed
+*.pid.lock

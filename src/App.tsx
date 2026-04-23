@@ -1,28 +1,29 @@
-import { ReactNode, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Menu } from 'lucide-react'
-import Home from './pages/Home.tsx'
-import Dashboard from './pages/Dashboard.tsx'
-import Order from './pages/PricingOrder.tsx'
-import Office from './pages/PricingOffice.tsx'
-import Items from './pages/Items.tsx'
-import LoyalCustomer from './pages/LoyalCustomer.tsx'
-import SalesOffice from './pages/SalesOffice.tsx'
-import SalesOrder from './pages/SalesOrder.tsx'
 import Sidebar from './components/Sidebar'
 import GlobalTooltip from './components/GlobalTooltip.tsx'
 import Login from './pages/Login.tsx'
 import { supabase } from './utils/supabase.ts'
 import { clearEncryptedSession, loadEncryptedSession, saveEncryptedSession, touchEncryptedSession } from './utils/authSession.ts'
 
-const pageComponents: Record<string, ReactNode> = {
-  Home: <Home />,
-  Dashboard: <Dashboard />,
-  Items: <Items />,
-  LoyalCustomer: <LoyalCustomer />,
-  PricingOffice: <Office />,
-  PricingOrder: <Order />,
-  SalesOffice: <SalesOffice />,
-  SalesOrder: <SalesOrder />,
+const Home = lazy(() => import('./pages/Home.tsx'))
+const Dashboard = lazy(() => import('./pages/Dashboard.tsx'))
+const Items = lazy(() => import('./pages/Items.tsx'))
+const LoyalCustomer = lazy(() => import('./pages/LoyalCustomer.tsx'))
+const PricingOffice = lazy(() => import('./pages/PricingOffice.tsx'))
+const PricingOrder = lazy(() => import('./pages/PricingOrder.tsx'))
+const SalesOffice = lazy(() => import('./pages/SalesOffice.tsx'))
+const SalesOrder = lazy(() => import('./pages/SalesOrder.tsx'))
+
+const pageComponents = {
+  Home,
+  Dashboard,
+  Items,
+  LoyalCustomer,
+  PricingOffice,
+  PricingOrder,
+  SalesOffice,
+  SalesOrder,
 }
 
 function App() {
@@ -193,6 +194,8 @@ function App() {
     )
   }
 
+  const ActivePage = pageComponents[activePage as keyof typeof pageComponents] ?? Home
+
   return (
     <div className="min-h-screen text-slate-900 lg:flex">
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-cyan-100 bg-white/90 px-4 py-3 backdrop-blur lg:hidden">
@@ -224,7 +227,9 @@ function App() {
       />
       <main className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6">
         <div className="glass-panel page-enter min-h-[calc(100vh-2rem)] rounded-[1.35rem] p-4 sm:p-5 lg:p-6">
-          {pageComponents[activePage] ?? <Home />}
+          <Suspense fallback={<div className="min-h-[30vh]" />}>
+            <ActivePage />
+          </Suspense>
         </div>
       </main>
       <GlobalTooltip />
