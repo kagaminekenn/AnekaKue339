@@ -2410,8 +2410,8 @@ const SalesOrder = () => {
                                 <tr key={item.id} className="border-b border-slate-100">
                                   <td className="px-2 py-2">{item.item_name}</td>
                                   <td className="px-2 py-2 text-center">{item.quantity}</td>
-                                  <td className="px-2 py-2 text-right">{formatCurrency(item.selling_price)}</td>
-                                  <td className="px-2 py-2 text-right">{formatCurrency(item.total_price)}</td>
+                                  <td className="px-2 py-2 text-right">{item.is_free ? 'Gratis' : formatCurrency(item.selling_price)}</td>
+                                  <td className="px-2 py-2 text-right">{item.is_free ? 'Gratis' : formatCurrency(item.total_price)}</td>
                                 </tr>
                               ))}
                             </tbody>

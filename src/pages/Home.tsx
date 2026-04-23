@@ -45,7 +45,7 @@ const isSameLocalDate = (first: Date, second: Date) =>
 
 const Home = () => {
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
-  const [isDetailSensorOn, setIsDetailSensorOn] = useState(false);
+  const [isDetailSensorOn, setIsDetailSensorOn] = useState(true);
 
   const startOfToday = useMemo(() => {
     const now = new Date();
