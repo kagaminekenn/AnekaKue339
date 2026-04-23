@@ -1180,11 +1180,24 @@ const SalesOffice = () => {
 
   const formatReceiptFileName = (salesDate: string) => {
     const date = new Date(`${salesDate}T00:00:00`);
+
+    if (Number.isNaN(date.getTime())) {
+      return 'office_sales_receipt_unknown.jpg';
+    }
+
     const day = String(date.getDate()).padStart(2, '0');
     const month = new Intl.DateTimeFormat('id-ID', { month: '2-digit' }).format(date);
     const year = String(date.getFullYear());
 
     return `${year}_${month}_${day}.jpg`;
+  };
+
+  const waitForNextPaint = async () => {
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => resolve());
+      });
+    });
   };
 
   const handleDownloadReceipt = async () => {
@@ -1193,6 +1206,8 @@ const SalesOffice = () => {
     }
 
     try {
+      await waitForNextPaint();
+
       await downloadElementAsJpg({
         elementId: 'office-sales-receipt-content',
         fileName: formatReceiptFileName(reportRecord.sales_date),

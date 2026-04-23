@@ -507,6 +507,27 @@ const SalesOrder = () => {
     setReportRecord(null);
   };
 
+  const waitForNextPaint = async () => {
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => resolve());
+      });
+    });
+  };
+
+  const getSafeIsoDate = (value: string | null) => {
+    if (!value) {
+      return 'unknown';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return 'unknown';
+    }
+
+    return date.toISOString().split('T')[0] ?? 'unknown';
+  };
+
   const formatReceiptDateTimeParts = (deliveryDateTime: string | null) => {
     if (!deliveryDateTime) {
       return {
@@ -562,7 +583,10 @@ const SalesOrder = () => {
     }
 
     try {
-      const iso = new Date(reportRecord.delivery_datetime ?? '').toISOString().split('T')[0] ?? 'unknown';
+      setReportTabIndex('receipt');
+      await waitForNextPaint();
+
+      const iso = getSafeIsoDate(reportRecord.delivery_datetime);
       await downloadElementAsJpg({
         elementId: 'order-receipt-content',
         fileName: `order_receipt_${reportRecord.name}_${iso}.jpg`,
@@ -580,7 +604,10 @@ const SalesOrder = () => {
     }
 
     try {
-      const iso = new Date(reportRecord.delivery_datetime ?? '').toISOString().split('T')[0] ?? 'unknown';
+      setReportTabIndex('cost');
+      await waitForNextPaint();
+
+      const iso = getSafeIsoDate(reportRecord.delivery_datetime);
       await downloadElementAsJpg({
         elementId: 'order-cost-content',
         fileName: `order_cost_report_${reportRecord.name}_${iso}.jpg`,
@@ -2357,7 +2384,7 @@ const SalesOrder = () => {
                       className="w-full cursor-pointer inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700"
                     >
                       <Download className="h-4 w-4" />
-                      Download Struk JPG
+                      Download JPG
                     </button>
                   </div>
                 )}
@@ -2422,7 +2449,7 @@ const SalesOrder = () => {
                       className="w-full cursor-pointer inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700"
                     >
                       <Download className="h-4 w-4" />
-                      Download Laporan Biaya JPG
+                      Download JPG
                     </button>
                   </div>
                 )}
