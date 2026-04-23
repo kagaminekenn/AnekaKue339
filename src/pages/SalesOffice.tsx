@@ -1234,6 +1234,7 @@ const SalesOffice = () => {
         stocks: number;
         solds: number;
         leftovers: number;
+        covers: number;
         total_cost: number;
         item_base_prices: number[];
       }
@@ -1254,6 +1255,7 @@ const SalesOffice = () => {
           stocks: item.stocks,
           solds: item.solds,
           leftovers: item.leftovers ?? 0,
+          covers: item.covers ?? 0,
           total_cost: item.total_cost,
           item_base_prices: [item.item_base_price],
         });
@@ -1263,6 +1265,7 @@ const SalesOffice = () => {
       current.stocks += item.stocks;
       current.solds += item.solds;
       current.leftovers += item.leftovers ?? 0;
+      current.covers += item.covers ?? 0;
       current.total_cost += item.total_cost;
       current.item_base_prices.push(item.item_base_price);
     });
@@ -2422,7 +2425,7 @@ const SalesOffice = () => {
                         <tr className="border-b border-slate-300">
                           <th className="px-2 py-2 text-left font-semibold">Stok</th>
                           <th className="px-2 py-2 text-left font-semibold">Produk</th>
-                          <th className="px-2 py-2 text-left font-semibold">Keterangan</th>
+                          <th className="px-2 py-2 text-left font-semibold">Terjual</th>
                           <th className="px-2 py-2 text-left font-semibold">Perhitungan</th>
                           <th className="px-2 py-2 text-right font-semibold">Total Harga</th>
                         </tr>
@@ -2430,17 +2433,18 @@ const SalesOffice = () => {
                       <tbody>
                         {reportReceiptItems.map((item) => {
                           const leftovers = item.leftovers ?? 0;
+                          const isSoldOut = leftovers <= 0;
                           const leftoverText = leftovers > 0 ? `(sisa ${leftovers})` : '(habis)';
                           const uniqueBasePrices = Array.from(new Set(item.item_base_prices));
                           const remarks = uniqueBasePrices.length === 1
-                            ? `${item.solds} x ${new Intl.NumberFormat('id-ID').format(uniqueBasePrices[0] ?? 0)}`
-                            : `${item.solds} x campuran`;
+                            ? `${item.solds+item.covers} x ${new Intl.NumberFormat('id-ID').format(uniqueBasePrices[0] ?? 0)}`
+                            : `${item.solds+item.covers} x campuran`;
 
                           return (
                             <tr key={item.id} className="border-b border-slate-100">
                               <td className="px-2 py-2">{item.stocks}</td>
                               <td className="px-2 py-2">{item.item_name}</td>
-                              <td className="px-2 py-2">{leftoverText}</td>
+                              <td className={`px-2 py-2 font-medium ${isSoldOut ? 'text-emerald-600' : 'text-rose-600'}`}>{leftoverText}</td>
                               <td className="px-2 py-2">{remarks}</td>
                               <td className="px-2 py-2 text-right">{formatCurrency(item.total_cost)}</td>
                             </tr>
