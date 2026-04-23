@@ -81,7 +81,7 @@ export const downloadElementAsJpg = async ({
 
   const tempContainer = document.createElement('div');
   tempContainer.style.position = 'fixed';
-  tempContainer.style.left = '-100000px';
+  tempContainer.style.left = '0';
   tempContainer.style.top = '0';
   tempContainer.style.width = `${exportWidth}px`;
   tempContainer.style.padding = '0';
@@ -90,6 +90,7 @@ export const downloadElementAsJpg = async ({
   tempContainer.style.pointerEvents = 'none';
   tempContainer.style.zIndex = '-1';
   tempContainer.style.overflow = 'visible';
+  clonedElement.style.width = `${exportWidth}px`;
   tempContainer.appendChild(clonedElement);
 
   document.body.appendChild(tempContainer);
@@ -107,7 +108,11 @@ export const downloadElementAsJpg = async ({
       Math.ceil(clonedElement.scrollHeight),
     );
 
-    const dataUrl = await toJpeg(tempContainer, {
+    if (canvasWidth <= 0 || canvasHeight <= 0) {
+      throw new Error('Konten report tidak memiliki ukuran yang valid untuk diexport.');
+    }
+
+    const dataUrl = await toJpeg(clonedElement, {
       quality,
       cacheBust: true,
       pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
