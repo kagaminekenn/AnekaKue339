@@ -386,10 +386,10 @@ const SalesOffice = () => {
       ? null
       : item.is_ordered
         ? option.base_price * item.stocks
-        : option.base_price * item.solds;
-    const totalRevenue = option.selling_price * item.solds;
+        : (option.base_price * (item.solds + item.covers)) === 0 ? null : option.base_price * (item.solds + item.covers);
+    const totalRevenue = (option.selling_price * item.solds) === 0 ? null : option.selling_price * item.solds;
     const totalLoss = item.is_ordered ? option.base_price * item.leftovers : null;
-    const netIncome = item.is_free ? totalRevenue : option.profit * item.solds - (totalLoss ?? 0);
+    const netIncome = item.is_free ? totalRevenue : (option.profit * item.solds) - (option.base_price * item.leftovers) - (totalLoss ?? 0);
 
     return {
       totalCost,
@@ -415,10 +415,10 @@ const SalesOffice = () => {
       ? null
       : item.is_ordered
         ? option.base_price * item.stocks
-        : option.base_price * item.solds;
-    const totalRevenue = option.selling_price * item.solds;
+        : (option.base_price * (item.solds + item.covers)) === 0 ? null : option.base_price * (item.solds + item.covers);
+    const totalRevenue = (option.selling_price * item.solds) === 0 ? null : option.selling_price * item.solds;
     const totalLoss = item.is_ordered ? option.base_price * item.leftovers : null;
-    const netIncome = item.is_free ? totalRevenue : option.profit * item.solds - (totalLoss ?? 0);
+    const netIncome = item.is_free ? totalRevenue : (option.profit * item.solds) - (option.base_price * item.leftovers) - (totalLoss ?? 0);
 
     return {
       totalCost,
@@ -437,9 +437,9 @@ const SalesOffice = () => {
         acc.totalSolds += item.solds;
         acc.totalLeftovers += item.leftovers;
         acc.totalCost += computed.totalCost ?? 0;
-        acc.totalRevenue += computed.totalRevenue;
+        acc.totalRevenue += computed.totalRevenue ?? 0;
         acc.totalLoss += computed.totalLoss ?? 0;
-        acc.netIncome += computed.netIncome;
+        acc.netIncome += computed.netIncome ?? 0;
 
         return acc;
       },
@@ -472,9 +472,9 @@ const SalesOffice = () => {
         acc.totalSolds += item.solds;
         acc.totalLeftovers += item.leftovers;
         acc.totalCost += computed.totalCost ?? 0;
-        acc.totalRevenue += computed.totalRevenue;
+        acc.totalRevenue += computed.totalRevenue ?? 0;
         acc.totalLoss += computed.totalLoss ?? 0;
-        acc.netIncome += computed.netIncome;
+        acc.netIncome += computed.netIncome ?? 0;
 
         return acc;
       },
@@ -642,6 +642,7 @@ const SalesOffice = () => {
           office_pricing_id: String(item.office_pricing_id),
           stocks: item.stocks,
           solds: item.solds,
+          covers: item.covers ?? 0,
           leftovers: item.leftovers ?? 0,
           is_ordered: item.is_ordered,
           is_free: item.is_free,
@@ -759,6 +760,7 @@ const SalesOffice = () => {
       office_pricing_id: '',
       stocks: 0,
       solds: 0,
+      covers: 0,
       leftovers: 0,
       is_ordered: false,
       is_free: false,
@@ -777,6 +779,7 @@ const SalesOffice = () => {
       office_pricing_id: '',
       stocks: 0,
       solds: 0,
+      covers: 0,
       leftovers: 0,
       is_ordered: false,
       is_free: false,
@@ -819,8 +822,8 @@ const SalesOffice = () => {
           [field]: value,
         } as AddFormItem;
 
-        if (field === 'stocks' || field === 'solds') {
-          updated.leftovers = Math.max(updated.stocks - updated.solds, 0);
+        if (field === 'stocks' || field === 'solds' || field === 'covers') {
+          updated.leftovers = Math.max(updated.stocks - updated.solds - updated.covers, 0);
         }
 
         return updated;
@@ -840,8 +843,8 @@ const SalesOffice = () => {
           [field]: value,
         } as AddFormItem;
 
-        if (field === 'stocks' || field === 'solds') {
-          updated.leftovers = Math.max(updated.stocks - updated.solds, 0);
+        if (field === 'stocks' || field === 'solds' || field === 'covers') {
+          updated.leftovers = Math.max(updated.stocks - updated.solds - updated.covers, 0);
         }
 
         return updated;
@@ -943,6 +946,7 @@ const SalesOffice = () => {
           user_update: currentUserDisplayName,
           stocks: item.stocks,
           solds: item.solds,
+          covers: item.covers,
           leftovers: item.leftovers,
           is_ordered: item.is_ordered,
           is_free: item.is_free,
@@ -1062,6 +1066,7 @@ const SalesOffice = () => {
           updated_date: updatedAt,
           stocks: item.stocks,
           solds: item.solds,
+          covers: item.covers,
           leftovers: item.leftovers,
           is_ordered: item.is_ordered,
           is_free: item.is_free,
@@ -1091,6 +1096,7 @@ const SalesOffice = () => {
             updated_date: row.updated_date,
             stocks: row.stocks,
             solds: row.solds,
+            covers: row.covers ?? 0,
             leftovers: row.leftovers,
             is_ordered: row.is_ordered,
             is_free: row.is_free,
@@ -1806,6 +1812,7 @@ const SalesOffice = () => {
                             <th className="w-[360px] min-w-[360px] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Product</th>
                             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Stocks</th>
                             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Solds</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Covers</th>
                             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Leftovers</th>
                             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Ordered</th>
                             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Free</th>
@@ -1865,6 +1872,17 @@ const SalesOffice = () => {
                                     pattern="[0-9]*"
                                     value={item.solds === 0 ? '' : item.solds}
                                     onChange={(e) => handleItemChange(item.id, 'solds', parseNumberInput(e.target.value))}
+                                    placeholder="0"
+                                    className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                                  />
+                                </td>
+                                <td className="px-4 py-4 text-sm text-slate-900">
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    value={item.covers === 0 ? '' : item.covers}
+                                    onChange={(e) => handleItemChange(item.id, 'covers', parseNumberInput(e.target.value))}
                                     placeholder="0"
                                     className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
                                   />
@@ -2149,6 +2167,7 @@ const SalesOffice = () => {
                               <th className="w-[360px] min-w-[360px] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Product</th>
                               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Stocks</th>
                               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Solds</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Covers</th>
                               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Leftovers</th>
                               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Ordered</th>
                               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Free</th>
@@ -2208,6 +2227,17 @@ const SalesOffice = () => {
                                       pattern="[0-9]*"
                                       value={item.solds === 0 ? '' : item.solds}
                                       onChange={(e) => handleEditItemChange(item.id, 'solds', parseNumberInput(e.target.value))}
+                                      placeholder="0"
+                                      className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                                    />
+                                  </td>
+                                  <td className="px-4 py-4 text-sm text-slate-900">
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      pattern="[0-9]*"
+                                      value={item.covers === 0 ? '' : item.covers}
+                                      onChange={(e) => handleEditItemChange(item.id, 'covers', parseNumberInput(e.target.value))}
                                       placeholder="0"
                                       className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
                                     />
