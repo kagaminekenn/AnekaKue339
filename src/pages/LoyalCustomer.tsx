@@ -1,5 +1,6 @@
 import { type ChangeEvent, type FormEvent, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 import { Eye, EyeOff, Pencil, Plus, Send, Trash2, X } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import { supabase } from '../utils/supabase';
@@ -82,6 +83,9 @@ const LoyalCustomer = () => {
         .range(from, to);
 
       if (error) {
+        if (editingId === null) {
+          toast.error(`Gagal menambahkan loyal customer: ${error.message}`);
+        }
         throw error;
       }
 
@@ -196,9 +200,19 @@ const LoyalCustomer = () => {
       setFormData(DEFAULT_FORM_DATA);
       setWhatsappPrefixWarning(false);
       setIsModalOpen(false);
+
+      if (editingId === null) {
+        toast.success('Loyal customer berhasil ditambahkan.');
+      } else {
+        toast.success('Loyal customer berhasil diperbarui.');
+      }
     } catch (error) {
       console.error('Error saving loyal customer:', error);
-      alert('Gagal menyimpan data loyal customer. Silakan coba lagi.');
+      if (editingId === null) {
+        toast.error('Gagal menyimpan loyal customer. Silakan coba lagi.');
+      } else {
+        toast.error('Gagal memperbarui loyal customer. Silakan coba lagi.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -230,9 +244,10 @@ const LoyalCustomer = () => {
       }
 
       await queryClient.invalidateQueries({ queryKey: ['loyal-customers'] });
+      toast.success('Loyal customer berhasil dihapus.');
     } catch (error) {
       console.error('Error deleting loyal customer:', error);
-      alert('Gagal menghapus data loyal customer. Silakan coba lagi.');
+      toast.error('Gagal menghapus data loyal customer. Silakan coba lagi.');
     } finally {
       setDeletingId(null);
     }

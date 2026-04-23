@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 import { CircleCheck, CircleX, Download, Eye, EyeOff, FileText, MapPin, Minus, Pencil, Plus, Save, TrendingDown, TrendingUp, X, XCircle, Trash2 } from 'lucide-react';
 import Select, { type InputActionMeta, type SingleValue } from 'react-select';
 import Pagination from '../components/Pagination';
@@ -389,7 +390,7 @@ const SalesOffice = () => {
         : (option.base_price * (item.solds + item.covers)) === 0 ? null : option.base_price * (item.solds + item.covers);
     const totalRevenue = (option.selling_price * item.solds) === 0 ? null : option.selling_price * item.solds;
     const totalLoss = item.is_ordered ? option.base_price * item.leftovers : null;
-    const netIncome = item.is_free ? totalRevenue : (option.profit * item.solds) - (option.base_price * item.leftovers) - (totalLoss ?? 0);
+    const netIncome = item.is_free ? totalRevenue : (option.profit * item.solds) - (option.base_price * item.covers) - (totalLoss ?? 0);
 
     return {
       totalCost,
@@ -418,7 +419,7 @@ const SalesOffice = () => {
         : (option.base_price * (item.solds + item.covers)) === 0 ? null : option.base_price * (item.solds + item.covers);
     const totalRevenue = (option.selling_price * item.solds) === 0 ? null : option.selling_price * item.solds;
     const totalLoss = item.is_ordered ? option.base_price * item.leftovers : null;
-    const netIncome = item.is_free ? totalRevenue : (option.profit * item.solds) - (option.base_price * item.leftovers) - (totalLoss ?? 0);
+    const netIncome = item.is_free ? totalRevenue : (option.profit * item.solds) - (option.base_price * item.covers) - (totalLoss ?? 0);
 
     return {
       totalCost,
@@ -982,10 +983,11 @@ const SalesOffice = () => {
       }
 
       await queryClient.invalidateQueries({ queryKey: ['office-sales'] });
+      toast.success('Office sales added successfully.');
       handleCloseAddModal();
     } catch (error) {
       console.error('Error submitting add office sales:', error);
-      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsAddSubmitting(false);
     }
@@ -1122,10 +1124,11 @@ const SalesOffice = () => {
 
       await queryClient.invalidateQueries({ queryKey: ['office-sales'], exact: false });
       await queryClient.invalidateQueries({ queryKey: ['office-sales-detail'], exact: false });
+      toast.success('Office sales updated successfully.');
       handleCloseEditModal();
     } catch (error) {
       console.error('Error submitting edit office sales:', error);
-      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Error updating office sales: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsEditSubmitting(false);
     }

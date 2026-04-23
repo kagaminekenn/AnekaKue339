@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 import { BanknoteArrowUp, BanknoteX, CalendarDays, CheckCircle, CheckCircle2, Clock3, Download, Eye, EyeOff, FileText, Minus, MinusCircle, PackageCheck, PackageX, Pencil, Plus, Search, Trash2, TrendingDown, TrendingUp, X, XCircle, Send } from 'lucide-react';
 import Select, { type InputActionMeta, type SingleValue } from 'react-select';
 import DatePicker from 'react-datepicker';
@@ -1257,6 +1258,7 @@ const SalesOrder = () => {
 
         await queryClient.invalidateQueries({ queryKey: ['order-sales'] });
         await queryClient.invalidateQueries({ queryKey: ['order-sales-detail'] });
+        toast.success('Order sales berhasil diperbarui.');
         handleCloseAddModal();
         return;
       }
@@ -1294,10 +1296,15 @@ const SalesOrder = () => {
       }
 
       await queryClient.invalidateQueries({ queryKey: ['order-sales'] });
+      toast.success('Order sales berhasil ditambahkan.');
       handleCloseAddModal();
     } catch (error) {
       console.error('Error creating order sales:', error);
-      alert(`Gagal menambahkan order sales: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      if (modalMode === 'add') {
+        toast.error(`Gagal menambahkan order sales: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      } else {
+        toast.error(`Gagal menyimpan perubahan order sales: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     } finally {
       setIsAddSubmitting(false);
     }

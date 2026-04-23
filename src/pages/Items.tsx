@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 import { supabase } from '../utils/supabase';
 import { Plus, X, Check, Pencil } from 'lucide-react';
 import Pagination from '../components/Pagination';
@@ -197,7 +198,11 @@ const Items = () => {
 
       if (error) {
         console.error(`Error ${modalMode === 'edit' ? 'updating' : 'adding'} item:`, error);
-        alert(`Error ${modalMode === 'edit' ? 'updating' : 'adding'} item: ` + error.message);
+        if (modalMode === 'add') {
+          toast.error(`Failed to add item: ${error.message}`);
+        } else {
+          alert(`Error updating item: ${error.message}`);
+        }
       } else {
         setIsModalOpen(false);
         setModalMode('add');
@@ -209,10 +214,20 @@ const Items = () => {
         if (modalMode === 'add' && currentPage !== 1) {
           setCurrentPage(1);
         }
+
+        if (modalMode === 'add') {
+          toast.success('Item added successfully.');
+        } else {
+          toast.success('Item updated successfully.');
+        }
       }
     } catch (error) {
       console.error(`Error ${modalMode === 'edit' ? 'updating' : 'adding'} item:`, error);
-      alert(`Error ${modalMode === 'edit' ? 'updating' : 'adding'} item`);
+      if (modalMode === 'add') {
+        toast.error('Failed to add item. Please try again.');
+      } else {
+        toast.error('Failed to update item. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
