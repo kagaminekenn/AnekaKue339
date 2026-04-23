@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 import { Check, Pencil, Plus, X } from 'lucide-react';
 import Select, { type InputActionMeta, type SingleValue } from 'react-select';
 import Pagination from '../components/Pagination';
@@ -358,7 +359,11 @@ const PricingOffice = () => {
 
       if (error) {
         console.error(`Error ${modalMode === 'edit' ? 'updating' : 'adding'} office pricing:`, error);
-        alert(`Error ${modalMode === 'edit' ? 'updating' : 'adding'} office pricing: ${error.message}`);
+        if (modalMode === 'add') {
+          toast.error(`Failed to add office pricing: ${error.message}`);
+        } else {
+          alert(`Error updating office pricing: ${error.message}`);
+        }
         return;
       }
 
@@ -379,9 +384,19 @@ const PricingOffice = () => {
         exact: false,
         refetchType: 'all',
       });
+
+      if (modalMode === 'add') {
+        toast.success('Office pricing added successfully.');
+      } else {
+        toast.success('Office pricing updated successfully.');
+      }
     } catch (error) {
       console.error(`Error ${modalMode === 'edit' ? 'updating' : 'adding'} office pricing:`, error);
-      alert(`Error ${modalMode === 'edit' ? 'updating' : 'adding'} office pricing`);
+      if (modalMode === 'add') {
+        toast.error('Failed to add office pricing. Please try again.');
+      } else {
+        toast.error('Failed to update office pricing. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
