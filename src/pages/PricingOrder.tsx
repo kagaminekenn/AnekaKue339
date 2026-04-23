@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 import { Check, Eye, EyeOff, Pencil, Plus, Send, X } from 'lucide-react';
 import Select, { type InputActionMeta, type SingleValue } from 'react-select';
 import Pagination from '../components/Pagination';
@@ -500,7 +501,7 @@ const Order = () => {
 
       if (existingCheckError) {
         console.error('Error validating active min order uniqueness:', existingCheckError);
-        alert(`Error validating active min order uniqueness: ${existingCheckError.message}`);
+        toast.error(`Error validating active min order uniqueness: ${existingCheckError.message}`);
         return;
       }
 
@@ -529,7 +530,7 @@ const Order = () => {
 
       if (error) {
         console.error('Error adding order pricing:', error);
-        alert(`Error adding order pricing: ${error.message}`);
+        toast.error(`Error adding order pricing: ${error.message}`);
         return;
       }
 
@@ -547,9 +548,11 @@ const Order = () => {
         exact: false,
         refetchType: 'all',
       });
+
+      toast.success('Order pricing added successfully.');
     } catch (error) {
       console.error('Error adding order pricing:', error);
-      alert('Error adding order pricing');
+      toast.error('Error adding order pricing. Please try again.');
     } finally {
       setIsAddSubmitting(false);
     }
@@ -603,7 +606,7 @@ const Order = () => {
 
       if (error) {
         console.error('Error updating order pricing:', error);
-        alert(`Error updating order pricing: ${error.message}`);
+        toast.error(`Error updating order pricing: ${error.message}`);
         return;
       }
 
@@ -617,9 +620,11 @@ const Order = () => {
         exact: false,
         refetchType: 'all',
       });
+
+      toast.success('Order pricing updated successfully.');
     } catch (error) {
       console.error('Error updating order pricing:', error);
-      alert('Error updating order pricing');
+      toast.error('Error updating order pricing. Please try again.');
     } finally {
       setIsEditSubmitting(false);
     }
