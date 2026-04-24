@@ -1,7 +1,9 @@
 import asyncio
 import os
+import traceback
 from datetime import datetime, timezone, timedelta
 from html import escape
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -23,8 +25,32 @@ SUPABASE_URL = _required_env("SUPABASE_URL")
 SUPABASE_KEY = _required_env("SUPABASE_SERVICE_ROLE_KEY")
 TELEGRAM_TOKEN = _required_env("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = _required_env("TELEGRAM_CHAT_ID")
+REMINDER_TIMEZONE = os.getenv("REMINDER_TIMEZONE", "Asia/Jakarta")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+def _get_business_tz() -> ZoneInfo:
+    try:
+        return ZoneInfo(REMINDER_TIMEZONE)
+    except Exception as e:
+        raise RuntimeError(
+            f"Invalid REMINDER_TIMEZONE '{REMINDER_TIMEZONE}': {e}"
+        ) from e
+
+
+def tomorrow_window_utc() -> tuple[datetime, datetime]:
+    """Build UTC window for 'tomorrow' based on business timezone."""
+    business_tz = _get_business_tz()
+    now_local = datetime.now(business_tz)
+    tomorrow_local_start = (now_local + timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    tomorrow_local_end = tomorrow_local_start + timedelta(days=1)
+    return (
+        tomorrow_local_start.astimezone(timezone.utc),
+        tomorrow_local_end.astimezone(timezone.utc),
+    )
 
 
 def fetch_due_orders() -> list[dict]:
@@ -32,13 +58,16 @@ def fetch_due_orders() -> list[dict]:
     Fetch orders where:
       - delivery_datetime falls on tomorrow (any time)
       - is_reminded = False
-    Uses UTC date window to handle timestamptz correctly.
+    Uses a business-timezone date window converted to UTC for timestamptz.
     """
-    now_utc      = datetime.now(timezone.utc)
-    tomorrow_start = (now_utc + timedelta(days=1)).replace(
-        hour=0, minute=0, second=0, microsecond=0
+    tomorrow_start, tomorrow_end = tomorrow_window_utc()
+    print(
+        "ℹ️ Query window UTC:",
+        tomorrow_start.isoformat(),
+        "to",
+        tomorrow_end.isoformat(),
+        f"(business TZ: {REMINDER_TIMEZONE})",
     )
-    tomorrow_end   = tomorrow_start + timedelta(days=1)
 
     response = (
         supabase.table("order_sales")
@@ -68,11 +97,10 @@ def mark_as_reminded(order_id: int) -> None:
 
 
 def format_delivery_datetime(dt_str: str) -> str:
-    """Convert ISO timestamptz → human-readable WIB (UTC+7)."""
+    """Convert ISO timestamptz to human-readable business timezone string."""
     dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
-    wib = timezone(timedelta(hours=7))
-    dt_wib = dt.astimezone(wib)
-    return dt_wib.strftime("%A, %d %B %Y  %H:%M WIB")
+    dt_local = dt.astimezone(_get_business_tz())
+    return dt_local.strftime(f"%A, %d %B %Y  %H:%M ({REMINDER_TIMEZONE})")
 
 
 def build_message(order: dict, items: list[dict]) -> str:
@@ -97,7 +125,13 @@ def build_message(order: dict, items: list[dict]) -> str:
 
 
 async def run():
-    bot    = Bot(token=TELEGRAM_TOKEN)
+    bot = Bot(token=TELEGRAM_TOKEN)
+
+    me = await bot.get_me()
+    print(f"🤖 Connected Telegram bot: @{me.username or me.id}")
+    chat = await bot.get_chat(TELEGRAM_CHAT_ID)
+    print(f"💬 Target chat resolved: {chat.id} ({getattr(chat, 'type', 'unknown')})")
+
     orders = fetch_due_orders()
 
     if not orders:
@@ -105,10 +139,14 @@ async def run():
         return
 
     print(f"📬 Found {len(orders)} order(s) to remind.")
+    print("📋 Order IDs:", ", ".join(str(order["id"]) for order in orders))
+
+    sent_count = 0
+    fail_count = 0
 
     for order in orders:
         try:
-            items   = fetch_order_items(order["id"])
+            items = fetch_order_items(order["id"])
             message = build_message(order, items)
 
             await bot.send_message(
@@ -118,11 +156,17 @@ async def run():
             )
 
             mark_as_reminded(order["id"])
+            sent_count += 1
             print(f"  ✔ Reminded order #{order['id']} — {order['name']}")
 
         except Exception as e:
-            # Don't crash the whole run for a single failed order
+            fail_count += 1
             print(f"  ✗ Failed order #{order['id']}: {e}")
+            print(traceback.format_exc())
+
+    print(f"✅ Sent: {sent_count}, ❌ Failed: {fail_count}")
+    if fail_count > 0:
+        raise RuntimeError(f"Reminder run completed with {fail_count} failed order(s)")
 
 
 if __name__ == "__main__":
