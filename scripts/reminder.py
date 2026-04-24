@@ -39,6 +39,56 @@ def _get_business_tz() -> ZoneInfo:
         ) from e
 
 
+def _normalize_chat_target(raw_value: str) -> int | str:
+    """Convert env value to a Telegram chat target accepted by Bot API."""
+    value = raw_value.strip().strip('"').strip("'")
+    if not value:
+        raise RuntimeError("TELEGRAM_CHAT_ID is empty after trimming quotes/spaces")
+
+    # Numeric chat IDs are common for users/groups/channels.
+    if value.lstrip("-").isdigit():
+        return int(value)
+
+    # Allow @username style as fallback.
+    if value.startswith("@"):
+        return value
+
+    # If user typed channel username without '@', normalize it.
+    if " " not in value:
+        return f"@{value}"
+
+    raise RuntimeError(
+        "TELEGRAM_CHAT_ID is not a valid numeric ID or @username value"
+    )
+
+
+async def _print_debug_chat_hints(bot: Bot) -> None:
+    """Print chat IDs seen by bot updates to help user set TELEGRAM_CHAT_ID."""
+    print("🔎 Debug: trying to read recent updates for visible chat IDs...")
+    updates = await bot.get_updates(limit=20, timeout=5)
+    if not updates:
+        print("ℹ️ No updates found. Send /start to the bot (or message the group/channel) first.")
+        return
+
+    seen_chat_ids: set[int] = set()
+    for upd in updates:
+        message = getattr(upd, "message", None) or getattr(upd, "channel_post", None)
+        if message and getattr(message, "chat", None):
+            chat = message.chat
+            if chat.id not in seen_chat_ids:
+                seen_chat_ids.add(chat.id)
+                print(
+                    "  • chat_id=",
+                    chat.id,
+                    "type=",
+                    getattr(chat, "type", "unknown"),
+                    "title=",
+                    getattr(chat, "title", None),
+                    "username=",
+                    getattr(chat, "username", None),
+                )
+
+
 def tomorrow_window_utc() -> tuple[datetime, datetime]:
     """Build UTC window for 'tomorrow' based on business timezone."""
     business_tz = _get_business_tz()
@@ -126,11 +176,21 @@ def build_message(order: dict, items: list[dict]) -> str:
 
 async def run():
     bot = Bot(token=TELEGRAM_TOKEN)
+    target_chat = _normalize_chat_target(TELEGRAM_CHAT_ID)
 
     me = await bot.get_me()
     print(f"🤖 Connected Telegram bot: @{me.username or me.id}")
-    chat = await bot.get_chat(TELEGRAM_CHAT_ID)
-    print(f"💬 Target chat resolved: {chat.id} ({getattr(chat, 'type', 'unknown')})")
+    try:
+        chat = await bot.get_chat(target_chat)
+        print(f"💬 Target chat resolved: {chat.id} ({getattr(chat, 'type', 'unknown')})")
+    except Exception as e:
+        print(f"❌ Failed to resolve TELEGRAM_CHAT_ID='{TELEGRAM_CHAT_ID}': {e}")
+        print("💡 Make sure the bot has access to that chat:")
+        print("   1) Private chat: open the bot and send /start from the same account/chat.")
+        print("   2) Group: add bot to group and disable privacy mode if needed.")
+        print("   3) Channel: add bot as admin before sending.")
+        await _print_debug_chat_hints(bot)
+        raise
 
     orders = fetch_due_orders()
 
@@ -150,7 +210,7 @@ async def run():
             message = build_message(order, items)
 
             await bot.send_message(
-                chat_id    = TELEGRAM_CHAT_ID,
+                chat_id    = target_chat,
                 text       = message,
                 parse_mode = ParseMode.HTML,
             )
