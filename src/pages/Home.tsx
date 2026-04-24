@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BanknoteArrowUp, BanknoteX, Calendar, CalendarClock, CalendarDays, Clock3, Eye, EyeOff, Minus, PackageCheck, PackageX, TrendingDown, TrendingUp, Truck, X, XCircle } from 'lucide-react';
+import { BanknoteArrowUp, BanknoteX, Calendar, CalendarClock, CalendarDays, Clock3, Eye, EyeOff, Minus, PackageCheck, PackageX, TrendingDown, TrendingUp, Truck, X } from 'lucide-react';
 import { formatCurrency } from '../utils/helper';
 import { formatDeliveryDateTime } from '../utils/salesOrder';
 import { supabase } from '../utils/supabase';
