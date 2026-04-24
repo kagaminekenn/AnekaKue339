@@ -380,8 +380,8 @@ const Home = () => {
                 <button
                   type="button"
                   onClick={() => setIsDetailSensorOn((prev) => !prev)}
-                  title={isDetailSensorOn ? 'Tampilkan nilai finansial' : 'Sembunyikan nilai finansial'}
-                  aria-label={isDetailSensorOn ? 'Tampilkan nilai finansial' : 'Sembunyikan nilai finansial'}
+                  title={isDetailSensorOn ? 'Show financial values' : 'Hide financial values'}
+                  aria-label={isDetailSensorOn ? 'Show financial values' : 'Hide financial values'}
                   className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                     isDetailSensorOn
                       ? 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
