@@ -2243,7 +2243,7 @@ const SalesOrder = () => {
               <div className="space-y-4">
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">Items</h3>
-                  <p className="mt-1 text-sm text-slate-500">List of items from order_sales_detail_view for this transaction.</p>
+                  <p className="mt-1 text-sm text-slate-500">List of items for this transaction.</p>
                 </div>
 
                 <div className="overflow-hidden rounded-2xl border border-cyan-100">
@@ -2256,10 +2256,10 @@ const SalesOrder = () => {
                       <table className="modern-table w-full min-w-[980px]">
                         <thead className="border-b border-cyan-100">
                           <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Item Name</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Quantity</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Selling Price</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Is Free</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Products</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Qty</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Price</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Notes</th>
                             <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Total Price</th>
                             <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Total Cost</th>
                             <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Net Income</th>
@@ -2272,7 +2272,7 @@ const SalesOrder = () => {
                               <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{item.quantity ?? 0}</td>
                               <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{formatCurrency(item.selling_price ?? 0)}</td>
                               <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
-                                {item.is_free ? <CheckCircle className="h-5 w-5 text-emerald-600" /> : <XCircle className="h-5 w-5 text-rose-600" />}
+                                {item.is_free ? <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-800">Free</span> : '-'}
                               </td>
                               <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{formatCurrency(item.total_price ?? 0)}</td>
                               <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
