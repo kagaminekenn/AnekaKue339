@@ -1,15 +1,28 @@
 import asyncio
 import os
 from datetime import datetime, timezone, timedelta
+from html import escape
+
+from dotenv import load_dotenv
 from supabase import create_client, Client
 from telegram import Bot
 from telegram.constants import ParseMode
 
 # ── Config ────────────────────────────────────────────────────────────────────
-SUPABASE_URL      = os.environ["SUPABASE_URL"]
-SUPABASE_KEY      = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-TELEGRAM_TOKEN    = os.environ["TELEGRAM_BOT_TOKEN"]
-TELEGRAM_CHAT_ID  = os.environ["TELEGRAM_CHAT_ID"]
+load_dotenv()
+
+
+def _required_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
+SUPABASE_URL = _required_env("SUPABASE_URL")
+SUPABASE_KEY = _required_env("SUPABASE_SERVICE_ROLE_KEY")
+TELEGRAM_TOKEN = _required_env("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = _required_env("TELEGRAM_CHAT_ID")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -56,29 +69,29 @@ def mark_as_reminded(order_id: int) -> None:
 
 def format_delivery_datetime(dt_str: str) -> str:
     """Convert ISO timestamptz → human-readable WIB (UTC+7)."""
-    dt = datetime.fromisoformat(dt_str)
+    dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
     wib = timezone(timedelta(hours=7))
     dt_wib = dt.astimezone(wib)
     return dt_wib.strftime("%A, %d %B %Y  %H:%M WIB")
 
 
 def build_message(order: dict, items: list[dict]) -> str:
-    """Compose the Telegram message (MarkdownV2-safe)."""
+    """Compose a Telegram-safe message using HTML parse mode."""
     items_text = "\n".join(
-        f"  • {item['item_name']} × {item['quantity']}"
+        f"• {escape(str(item['item_name']))} x {escape(str(item['quantity']))}"
         for item in items
-    ) or "  _No item detail found_"
+    ) or "No item detail found"
 
     msg = (
-        f"🔔 *DELIVERY REMINDER*\n"
-        f"{'─' * 30}\n\n"
-        f"👤 *Name:*\n{order['name']}\n\n"
-        f"📱 *WhatsApp:*\n{order['whatsapp']}\n\n"
-        f"📦 *Total Items:* {order['total_items']}\n\n"
-        f"🗂 *Items:*\n{items_text}\n\n"
-        f"🚚 *Delivery Type:*\n{order['delivery_type']}\n\n"
-        f"🕐 *Delivery Time:*\n{format_delivery_datetime(order['delivery_datetime'])}\n\n"
-        f"📍 *Address:*\n{order['delivery_address']}\n"
+        "🔔 <b>DELIVERY REMINDER</b>\n"
+        f"{'-' * 30}\n\n"
+        f"👤 <b>Name:</b>\n{escape(str(order['name']))}\n\n"
+        f"📱 <b>WhatsApp:</b>\n{escape(str(order['whatsapp']))}\n\n"
+        f"📦 <b>Total Items:</b> {escape(str(order['total_items']))}\n\n"
+        f"🗂 <b>Items:</b>\n{items_text}\n\n"
+        f"🚚 <b>Delivery Type:</b>\n{escape(str(order['delivery_type']))}\n\n"
+        f"🕐 <b>Delivery Time:</b>\n{escape(format_delivery_datetime(str(order['delivery_datetime'])))}\n\n"
+        f"📍 <b>Address:</b>\n{escape(str(order['delivery_address']))}\n"
     )
     return msg
 
@@ -101,7 +114,7 @@ async def run():
             await bot.send_message(
                 chat_id    = TELEGRAM_CHAT_ID,
                 text       = message,
-                parse_mode = ParseMode.MARKDOWN,
+                parse_mode = ParseMode.HTML,
             )
 
             mark_as_reminded(order["id"])
