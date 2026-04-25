@@ -226,15 +226,15 @@ const OrderStatusBadge = ({ isPaid, isDelivered }: { isPaid: boolean | null; isD
   );
 };
 
-const isOrderDone = (isPaid: boolean | null, isDelivered: boolean | null) => isPaid === true && isDelivered === true;
-
 const SalesOrder = () => {
   const queryClient = useQueryClient();
-  const [currentPage, setCurrentPage] = useState(1);
+  const [ongoingCurrentPage, setOngoingCurrentPage] = useState(1);
+  const [pastOrdersCurrentPage, setPastOrdersCurrentPage] = useState(1);
   const [searchInput, setSearchInput] = useState('');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [sortField, setSortField] = useState<SortField>('delivery_datetime');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [isPastOrdersOpen, setIsPastOrdersOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>('add');
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
@@ -708,7 +708,8 @@ const SalesOrder = () => {
   };
 
   const handleSort = (field: SortField) => {
-    setCurrentPage(1);
+    setOngoingCurrentPage(1);
+    setPastOrdersCurrentPage(1);
     if (field === sortField) {
       setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
       return;
@@ -747,7 +748,8 @@ const SalesOrder = () => {
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       setSearchKeyword(searchInput.trim());
-      setCurrentPage(1);
+      setOngoingCurrentPage(1);
+      setPastOrdersCurrentPage(1);
     }, 350);
 
     return () => {
@@ -825,9 +827,9 @@ const SalesOrder = () => {
   const animatedPlaceholderText = currentPlaceholderWord.slice(0, placeholderCharCount);
 
   const { data: orderSalesData, isLoading, isFetching } = useQuery<OrderSalesQueryResult>({
-    queryKey: ['order-sales', currentPage, searchKeyword, sortField, sortDirection],
+    queryKey: ['order-sales-ongoing', ongoingCurrentPage, searchKeyword, sortField, sortDirection],
     queryFn: async () => {
-      const from = (currentPage - 1) * TABLE_PAGE_SIZE;
+      const from = (ongoingCurrentPage - 1) * TABLE_PAGE_SIZE;
       const to = from + TABLE_PAGE_SIZE - 1;
 
       let query = supabase
@@ -835,6 +837,46 @@ const SalesOrder = () => {
         .select('id,name,whatsapp,delivery_datetime,delivery_address,delivery_type,delivery_cost,is_paid,is_delivered,total_items,total_price', {
           count: 'exact',
         })
+        .or('is_paid.eq.false,is_delivered.eq.false,is_paid.is.null,is_delivered.is.null')
+        .order(sortField, { ascending: sortDirection === 'asc', nullsFirst: false })
+        .order('id', { ascending: false });
+
+      if (searchKeyword) {
+        const escapedKeyword = searchKeyword.replace(/,/g, '\\,');
+        query = query.or(`name.ilike.%${escapedKeyword}%,whatsapp.ilike.%${escapedKeyword}%`);
+      }
+
+      const { data, error, count } = await query.range(from, to);
+
+      if (error) {
+        throw error;
+      }
+
+      return {
+        records: (data ?? []) as OrderSalesRecord[],
+        totalItems: count ?? 0,
+      };
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const {
+    data: pastOrdersData,
+    isLoading: isPastOrdersLoading,
+    isFetching: isPastOrdersFetching,
+  } = useQuery<OrderSalesQueryResult>({
+    queryKey: ['order-sales-past', pastOrdersCurrentPage, searchKeyword, sortField, sortDirection],
+    queryFn: async () => {
+      const from = (pastOrdersCurrentPage - 1) * TABLE_PAGE_SIZE;
+      const to = from + TABLE_PAGE_SIZE - 1;
+
+      let query = supabase
+        .from('order_sales')
+        .select('id,name,whatsapp,delivery_datetime,delivery_address,delivery_type,delivery_cost,is_paid,is_delivered,total_items,total_price', {
+          count: 'exact',
+        })
+        .eq('is_paid', true)
+        .eq('is_delivered', true)
         .order(sortField, { ascending: sortDirection === 'asc', nullsFirst: false })
         .order('id', { ascending: false });
 
@@ -1006,19 +1048,15 @@ const SalesOrder = () => {
     staleTime: 1000 * 60 * 5,
   });
 
-  const records = orderSalesData?.records ?? [];
-  const ongoingRecords = useMemo(
-    () => records.filter((record) => !isOrderDone(record.is_paid, record.is_delivered)),
-    [records],
-  );
-  const pastOrderRecords = useMemo(
-    () => records.filter((record) => isOrderDone(record.is_paid, record.is_delivered)),
-    [records],
-  );
+  const ongoingRecords = orderSalesData?.records ?? [];
+  const pastOrderRecords = pastOrdersData?.records ?? [];
   const loyalCustomers = loyalCustomersData ?? [];
   const addPricingRows = addOrderPricingRows ?? [];
-  const totalItems = orderSalesData?.totalItems ?? 0;
+  const ongoingTotalItems = orderSalesData?.totalItems ?? 0;
+  const pastOrdersTotalItems = pastOrdersData?.totalItems ?? 0;
+  const totalMatchingItems = ongoingTotalItems + pastOrdersTotalItems;
   const loading = isLoading || isFetching;
+  const pastOrdersLoading = isPastOrdersLoading || isPastOrdersFetching;
   const hasKeyword = useMemo(() => searchKeyword.length > 0, [searchKeyword]);
   const detailRecords = orderSalesDetailItemsData?.records ?? [];
   const detailTotalItems = orderSalesDetailItemsData?.totalItems ?? 0;
@@ -1696,12 +1734,15 @@ const SalesOrder = () => {
             )}
           </div>
 
-          <details className="overflow-hidden rounded-2xl border border-cyan-100 bg-white">
+          <details
+            className="overflow-hidden rounded-2xl border border-cyan-100 bg-white"
+            onToggle={(event) => setIsPastOrdersOpen(event.currentTarget.open)}
+          >
             <summary className="cursor-pointer list-none border-b border-cyan-100 bg-cyan-50/50 px-4 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-cyan-800 sm:px-6">
               All Past Orders
             </summary>
 
-            {loading ? (
+            {pastOrdersLoading ? (
               <div className="p-10 text-center text-slate-500">Loading order sales...</div>
             ) : pastOrderRecords.length === 0 ? (
               <div className="p-10 text-center text-slate-500">
@@ -1829,20 +1870,31 @@ const SalesOrder = () => {
                 </table>
               </div>
             )}
+
+            {!pastOrdersLoading && isPastOrdersOpen && pastOrderRecords.length > 0 && (
+              <Pagination
+                currentPage={pastOrdersCurrentPage}
+                totalItems={pastOrdersTotalItems}
+                pageSize={TABLE_PAGE_SIZE}
+                onPageChange={setPastOrdersCurrentPage}
+              />
+            )}
           </details>
 
-          {!loading && records.length === 0 && (
+          {!loading && !pastOrdersLoading && totalMatchingItems === 0 && (
             <div className="rounded-2xl border border-cyan-100 bg-white p-10 text-center text-slate-500">
               {hasKeyword ? 'Tidak ada data yang cocok dengan pencarian.' : 'Belum ada data order sales.'}
             </div>
           )}
 
-          <Pagination
-            currentPage={currentPage}
-            totalItems={totalItems}
-            pageSize={TABLE_PAGE_SIZE}
-            onPageChange={setCurrentPage}
-          />
+          {!loading && ongoingRecords.length > 0 && (
+            <Pagination
+              currentPage={ongoingCurrentPage}
+              totalItems={ongoingTotalItems}
+              pageSize={TABLE_PAGE_SIZE}
+              onPageChange={setOngoingCurrentPage}
+            />
+          )}
         </div>
       </div>
 
