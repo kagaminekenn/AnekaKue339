@@ -196,6 +196,38 @@ const StatusIcon = ({ value, label }: { value: boolean | null; label: string }) 
   );
 };
 
+const OrderStatusBadge = ({ isPaid, isDelivered }: { isPaid: boolean | null; isDelivered: boolean | null }) => {
+  const paid = isPaid === true;
+  const delivered = isDelivered === true;
+
+  if (paid && delivered) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+        <CheckCircle2 className="h-3.5 w-3.5" />
+        Done
+      </span>
+    );
+  }
+
+  if (paid && !delivered) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+        <PackageX className="h-3.5 w-3.5" />
+        Pending Delivery
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-800">
+      <BanknoteX className="h-3.5 w-3.5" />
+      Pending Payment
+    </span>
+  );
+};
+
+const isOrderDone = (isPaid: boolean | null, isDelivered: boolean | null) => isPaid === true && isDelivered === true;
+
 const SalesOrder = () => {
   const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
@@ -975,6 +1007,14 @@ const SalesOrder = () => {
   });
 
   const records = orderSalesData?.records ?? [];
+  const ongoingRecords = useMemo(
+    () => records.filter((record) => !isOrderDone(record.is_paid, record.is_delivered)),
+    [records],
+  );
+  const pastOrderRecords = useMemo(
+    () => records.filter((record) => isOrderDone(record.is_paid, record.is_delivered)),
+    [records],
+  );
   const loyalCustomers = loyalCustomersData ?? [];
   const addPricingRows = addOrderPricingRows ?? [];
   const totalItems = orderSalesData?.totalItems ?? 0;
@@ -1520,161 +1560,290 @@ const SalesOrder = () => {
           </button>
         </div>
 
-        {loading ? (
-          <div className="p-10 text-center text-slate-500">Loading order sales...</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="modern-table w-full min-w-[1120px]">
-              <thead className="border-b border-cyan-100">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('name')} className="inline-flex cursor-pointer items-center gap-1">
-                      Name
-                      <span>{getSortIndicator('name')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('whatsapp')} className="inline-flex cursor-pointer items-center gap-1">
-                      Whatsapp
-                      <span>{getSortIndicator('whatsapp')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('delivery_datetime')} className="inline-flex cursor-pointer items-center gap-1">
-                      Delivery Datetime
-                      <span>{getSortIndicator('delivery_datetime')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('delivery_type')} className="inline-flex cursor-pointer items-center gap-1">
-                      Delivery Type
-                      <span>{getSortIndicator('delivery_type')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('total_items')} className="inline-flex cursor-pointer items-center gap-1">
-                      Total Items
-                      <span>{getSortIndicator('total_items')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('total_price')} className="inline-flex cursor-pointer items-center gap-1">
-                      Total Price
-                      <span>{getSortIndicator('total_price')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('is_paid')} className="inline-flex cursor-pointer items-center gap-1">
-                      Paid
-                      <span>{getSortIndicator('is_paid')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('is_delivered')} className="inline-flex cursor-pointer items-center gap-1">
-                      Delivered
-                      <span>{getSortIndicator('is_delivered')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-cyan-50 bg-white/80">
-                {records.map((record) => {
-                  const deliveryDateTime = formatDeliveryDateTime(record.delivery_datetime);
+        <div className="space-y-6 p-4 sm:p-6">
+          <div className="overflow-hidden rounded-2xl border border-cyan-100 bg-white">
+            <div className="border-b border-cyan-100 bg-cyan-50/50 px-4 py-3 sm:px-6">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-cyan-800">Ongoing</h2>
+            </div>
 
-                  return (
-                  <tr key={record.id}>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.name || '-'}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.whatsapp || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-slate-900">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 whitespace-nowrap">
-                          <CalendarDays className="h-4 w-4 text-cyan-700" />
-                          <span>{deliveryDateTime.date}</span>
-                        </div>
-                        <div className="flex items-center gap-2 whitespace-nowrap text-slate-600">
-                          <Clock3 className="h-4 w-4 text-cyan-700" />
-                          <span>{deliveryDateTime.time}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-900">{record.delivery_type || '-'}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.total_items ?? 0}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
-                      {formatCurrency(record.total_price ?? 0)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-900">
-                      <div className="flex justify-center">
-                        <StatusIcon value={record.is_paid} label="Paid" />
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-900">
-                      <div className="flex justify-center">
-                        <StatusIcon value={record.is_delivered} label="Delivered" />
-                      </div>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenDetail(record.id)}
-                          title="View detail"
-                          aria-label={`View detail ${record.name}`}
-                          className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-slate-200 text-slate-700 transition-colors hover:bg-slate-50"
-                        >
-                          <Eye className="h-4 w-4" />
+            {loading ? (
+              <div className="p-10 text-center text-slate-500">Loading order sales...</div>
+            ) : ongoingRecords.length === 0 ? (
+              <div className="p-10 text-center text-slate-500">
+                {hasKeyword ? 'Tidak ada data ongoing yang cocok dengan pencarian.' : 'Tidak ada ongoing order.'}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="modern-table w-full min-w-[1040px]">
+                  <thead className="border-b border-cyan-100">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('name')} className="inline-flex cursor-pointer items-center gap-1">
+                          Name
+                          <span>{getSortIndicator('name')}</span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditModal(record.id)}
-                          title="Edit"
-                          aria-label={`Edit ${record.name}`}
-                          className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-cyan-200 text-cyan-700 transition-colors hover:bg-cyan-50"
-                        >
-                          <Pencil className="h-4 w-4" />
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('whatsapp')} className="inline-flex cursor-pointer items-center gap-1">
+                          Whatsapp
+                          <span>{getSortIndicator('whatsapp')}</span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenReportModal(record)}
-                          title="Generate report"
-                          aria-label={`Generate report for ${record.name}`}
-                          className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-violet-300 px-3 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-50"
-                        >
-                          <FileText className="h-4 w-4" />
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('delivery_datetime')} className="inline-flex cursor-pointer items-center gap-1">
+                          Delivery Datetime
+                          <span>{getSortIndicator('delivery_datetime')}</span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void handleDeleteOrder(record);
-                          }}
-                          disabled={deletingOrderId === record.id}
-                          title="Delete"
-                          aria-label={`Delete ${record.name}`}
-                          className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-rose-200 text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Trash2 className="h-4 w-4" />
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('delivery_type')} className="inline-flex cursor-pointer items-center gap-1">
+                          Delivery Type
+                          <span>{getSortIndicator('delivery_type')}</span>
                         </button>
-                      </div>
-                    </td>
-                  </tr>
-                )})}
-              </tbody>
-            </table>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('total_items')} className="inline-flex cursor-pointer items-center gap-1">
+                          Total Items
+                          <span>{getSortIndicator('total_items')}</span>
+                        </button>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('total_price')} className="inline-flex cursor-pointer items-center gap-1">
+                          Total Price
+                          <span>{getSortIndicator('total_price')}</span>
+                        </button>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-cyan-50 bg-white/80">
+                    {ongoingRecords.map((record) => {
+                      const deliveryDateTime = formatDeliveryDateTime(record.delivery_datetime);
+
+                      return (
+                      <tr key={record.id}>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
+                          <OrderStatusBadge isPaid={record.is_paid} isDelivered={record.is_delivered} />
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.name || '-'}</td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.whatsapp || '-'}</td>
+                        <td className="px-6 py-4 text-sm text-slate-900">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 whitespace-nowrap">
+                              <CalendarDays className="h-4 w-4 text-cyan-700" />
+                              <span>{deliveryDateTime.date}</span>
+                            </div>
+                            <div className="flex items-center gap-2 whitespace-nowrap text-slate-600">
+                              <Clock3 className="h-4 w-4 text-cyan-700" />
+                              <span>{deliveryDateTime.time}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-900">{record.delivery_type || '-'}</td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.total_items ?? 0}</td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
+                          {formatCurrency(record.total_price ?? 0)}
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDetail(record.id)}
+                              title="View detail"
+                              aria-label={`View detail ${record.name}`}
+                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-slate-200 text-slate-700 transition-colors hover:bg-slate-50"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(record.id)}
+                              title="Edit"
+                              aria-label={`Edit ${record.name}`}
+                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-cyan-200 text-cyan-700 transition-colors hover:bg-cyan-50"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReportModal(record)}
+                              title="Generate report"
+                              aria-label={`Generate report for ${record.name}`}
+                              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-violet-300 px-3 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-50"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void handleDeleteOrder(record);
+                              }}
+                              disabled={deletingOrderId === record.id}
+                              title="Delete"
+                              aria-label={`Delete ${record.name}`}
+                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-rose-200 text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )})}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        )}
 
-        {!loading && records.length === 0 && (
-          <div className="p-10 text-center text-slate-500">
-            {hasKeyword ? 'Tidak ada data yang cocok dengan pencarian.' : 'Belum ada data order sales.'}
-          </div>
-        )}
+          <details className="overflow-hidden rounded-2xl border border-cyan-100 bg-white">
+            <summary className="cursor-pointer list-none border-b border-cyan-100 bg-cyan-50/50 px-4 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-cyan-800 sm:px-6">
+              All Past Orders
+            </summary>
 
-        <Pagination
-          currentPage={currentPage}
-          totalItems={totalItems}
-          pageSize={TABLE_PAGE_SIZE}
-          onPageChange={setCurrentPage}
-        />
+            {loading ? (
+              <div className="p-10 text-center text-slate-500">Loading order sales...</div>
+            ) : pastOrderRecords.length === 0 ? (
+              <div className="p-10 text-center text-slate-500">
+                {hasKeyword ? 'Tidak ada data done yang cocok dengan pencarian.' : 'Belum ada past order.'}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="modern-table w-full min-w-[1040px]">
+                  <thead className="border-b border-cyan-100">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('name')} className="inline-flex cursor-pointer items-center gap-1">
+                          Name
+                          <span>{getSortIndicator('name')}</span>
+                        </button>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('whatsapp')} className="inline-flex cursor-pointer items-center gap-1">
+                          Whatsapp
+                          <span>{getSortIndicator('whatsapp')}</span>
+                        </button>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('delivery_datetime')} className="inline-flex cursor-pointer items-center gap-1">
+                          Delivery Datetime
+                          <span>{getSortIndicator('delivery_datetime')}</span>
+                        </button>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('delivery_type')} className="inline-flex cursor-pointer items-center gap-1">
+                          Delivery Type
+                          <span>{getSortIndicator('delivery_type')}</span>
+                        </button>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('total_items')} className="inline-flex cursor-pointer items-center gap-1">
+                          Total Items
+                          <span>{getSortIndicator('total_items')}</span>
+                        </button>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('total_price')} className="inline-flex cursor-pointer items-center gap-1">
+                          Total Price
+                          <span>{getSortIndicator('total_price')}</span>
+                        </button>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-cyan-50 bg-white/80">
+                    {pastOrderRecords.map((record) => {
+                      const deliveryDateTime = formatDeliveryDateTime(record.delivery_datetime);
+
+                      return (
+                      <tr key={record.id}>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
+                          <OrderStatusBadge isPaid={record.is_paid} isDelivered={record.is_delivered} />
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.name || '-'}</td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.whatsapp || '-'}</td>
+                        <td className="px-6 py-4 text-sm text-slate-900">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 whitespace-nowrap">
+                              <CalendarDays className="h-4 w-4 text-cyan-700" />
+                              <span>{deliveryDateTime.date}</span>
+                            </div>
+                            <div className="flex items-center gap-2 whitespace-nowrap text-slate-600">
+                              <Clock3 className="h-4 w-4 text-cyan-700" />
+                              <span>{deliveryDateTime.time}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-900">{record.delivery_type || '-'}</td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.total_items ?? 0}</td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
+                          {formatCurrency(record.total_price ?? 0)}
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDetail(record.id)}
+                              title="View detail"
+                              aria-label={`View detail ${record.name}`}
+                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-slate-200 text-slate-700 transition-colors hover:bg-slate-50"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(record.id)}
+                              title="Edit"
+                              aria-label={`Edit ${record.name}`}
+                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-cyan-200 text-cyan-700 transition-colors hover:bg-cyan-50"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReportModal(record)}
+                              title="Generate report"
+                              aria-label={`Generate report for ${record.name}`}
+                              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-violet-300 px-3 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-50"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void handleDeleteOrder(record);
+                              }}
+                              disabled={deletingOrderId === record.id}
+                              title="Delete"
+                              aria-label={`Delete ${record.name}`}
+                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-rose-200 text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )})}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </details>
+
+          {!loading && records.length === 0 && (
+            <div className="rounded-2xl border border-cyan-100 bg-white p-10 text-center text-slate-500">
+              {hasKeyword ? 'Tidak ada data yang cocok dengan pencarian.' : 'Belum ada data order sales.'}
+            </div>
+          )}
+
+          <Pagination
+            currentPage={currentPage}
+            totalItems={totalItems}
+            pageSize={TABLE_PAGE_SIZE}
+            onPageChange={setCurrentPage}
+          />
+        </div>
       </div>
 
       {isAddModalOpen && (
