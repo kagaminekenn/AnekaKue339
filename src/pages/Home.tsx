@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BanknoteArrowUp, BanknoteX, Calendar, CalendarClock, CalendarDays, Clock3, Eye, EyeOff, Minus, PackageCheck, PackageX, TrendingDown, TrendingUp, Truck, X } from 'lucide-react';
+import { BanknoteArrowUp, BanknoteX, Calendar, CalendarClock, CalendarDays, Clock3, Eye, EyeOff, Minus, PackageCheck, PackageX, ReceiptText, TrendingDown, TrendingUp, Truck, X } from 'lucide-react';
 import { formatCurrency } from '../utils/helper';
 import { formatDeliveryDateTime } from '../utils/salesOrder';
 import { supabase } from '../utils/supabase';
@@ -36,6 +36,10 @@ type DeliveryOrderDetailItem = {
 
 type DeliveryWidgetQueryResult = {
   records: DeliveryOrderRecord[];
+};
+
+type NetIncomeRecord = {
+  net_income: number | null;
 };
 
 const isSameLocalDate = (first: Date, second: Date) =>
@@ -171,6 +175,52 @@ const Home = () => {
     staleTime: 1000 * 60 * 5,
   });
 
+  const {
+    data: unsavedOfficeSalesNetIncome,
+    isLoading: isUnsavedOfficeSalesNetIncomeLoading,
+    isFetching: isUnsavedOfficeSalesNetIncomeFetching,
+  } = useQuery<number>({
+    queryKey: ['home-office-sales-unsaved-net-income'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('office_sales')
+        .select('net_income')
+        .eq('is_saved', false);
+
+      if (error) {
+        throw error;
+      }
+
+      const records = (data ?? []) as NetIncomeRecord[];
+
+      return records.reduce((total, record) => total + (record.net_income ?? 0), 0);
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const {
+    data: unsavedOrderSalesNetIncome,
+    isLoading: isUnsavedOrderSalesNetIncomeLoading,
+    isFetching: isUnsavedOrderSalesNetIncomeFetching,
+  } = useQuery<number>({
+    queryKey: ['home-order-sales-unsaved-net-income'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('order_sales')
+        .select('net_income')
+        .eq('is_saved', false);
+
+      if (error) {
+        throw error;
+      }
+
+      const records = (data ?? []) as NetIncomeRecord[];
+
+      return records.reduce((total, record) => total + (record.net_income ?? 0), 0);
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
   useEffect(() => {
     if (!selectedOrderId) {
       return;
@@ -225,7 +275,7 @@ const Home = () => {
       ? upcomingBadge
       : {
         label: 'Today',
-        className: 'bg-cyan-600 text-white ring-1 ring-cyan-400',
+        className: 'bg-cyan-600 text-white ring-1 ring-cyan-400 shadow-sm motion-safe:animate-[pulse_1.5s_ease-in-out_infinite]',
       };
     const todayCardClassName = 'border-cyan-200 bg-white shadow-sm hover:border-cyan-300 hover:shadow-md';
     const upcomingCardClassName = 'border-slate-200 bg-white shadow-sm hover:border-slate-300 hover:shadow-md';
@@ -270,6 +320,8 @@ const Home = () => {
   const paidStatus = selectedOrder?.is_paid === true;
   const deliveredStatus = selectedOrder?.is_delivered === true;
   const detailSensorClass = isDetailSensorOn ? 'select-none blur-sm' : '';
+  const unsavedOfficeSalesLoading = isUnsavedOfficeSalesNetIncomeLoading || isUnsavedOfficeSalesNetIncomeFetching;
+  const unsavedOrderSalesLoading = isUnsavedOrderSalesNetIncomeLoading || isUnsavedOrderSalesNetIncomeFetching;
 
   const renderNetIncomeIndicator = (netIncome: number, sensorClass = detailSensorClass) => (
     <span
@@ -354,6 +406,42 @@ const Home = () => {
             </div>
           </div>
         )}
+      </section>
+
+
+
+      <section className="glass-panel rounded-2xl border border-amber-100 bg-gradient-to-r from-amber-50/70 via-white to-orange-50/60 p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em] text-amber-700">
+              <ReceiptText className="h-4 w-4" />
+              Unsaved Net Income
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">Total unsaved net income.</p>
+          </div>
+
+          <div className="grid w-full grid-cols-1 gap-3 sm:w-auto sm:grid-cols-2">
+            <div
+              className="rounded-xl border border-amber-200 bg-white px-4 py-3 text-right shadow-sm"
+              title="Sum of Office Sales Net Income"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Office Sales</p>
+              <p className="mt-1 text-xl font-bold leading-tight text-amber-800 sm:text-2xl">
+                {unsavedOfficeSalesLoading ? 'Loading...' : formatCurrency(unsavedOfficeSalesNetIncome ?? 0)}
+              </p>
+            </div>
+
+            <div
+              className="rounded-xl border border-amber-200 bg-white px-4 py-3 text-right shadow-sm"
+              title="Sum of Order Sales Net Income"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Order Sales</p>
+              <p className="mt-1 text-xl font-bold leading-tight text-amber-800 sm:text-2xl">
+                {unsavedOrderSalesLoading ? 'Loading...' : formatCurrency(unsavedOrderSalesNetIncome ?? 0)}
+              </p>
+            </div>
+          </div>
+        </div>
       </section>
 
       {selectedOrderId !== null && (
