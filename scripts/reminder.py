@@ -237,7 +237,11 @@ def build_message(order: dict, items: list[dict]) -> str:
 
 
 def should_send_today_reminder(delivery_dt_str: str) -> bool:
-    """Send 'today' reminder when delivery is today and within the next 6 hours."""
+    """Send 'today' reminder only on the H-6 hourly window.
+
+    With an hourly scheduler, exact equality to 6 hours is too strict, so we
+    treat H-6 as the window where remaining time is in (5h, 6h].
+    """
     business_tz = _get_business_tz()
     now_local = datetime.now(business_tz)
     delivery_local = datetime.fromisoformat(delivery_dt_str.replace("Z", "+00:00")).astimezone(business_tz)
@@ -246,7 +250,7 @@ def should_send_today_reminder(delivery_dt_str: str) -> bool:
         return False
 
     diff = delivery_local - now_local
-    return timedelta(0) <= diff <= timedelta(hours=6)
+    return timedelta(hours=5) < diff <= timedelta(hours=6)
 
 
 async def run():
