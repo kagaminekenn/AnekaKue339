@@ -41,6 +41,7 @@ type OrderSalesRecord = {
   is_delivered: boolean | null;
   total_items: number;
   total_price: number;
+  remark: string | null;
 };
 
 type OrderSalesQueryResult = {
@@ -834,7 +835,7 @@ const SalesOrder = () => {
 
       let query = supabase
         .from('order_sales')
-        .select('id,name,whatsapp,delivery_datetime,delivery_address,delivery_type,delivery_cost,is_paid,is_delivered,total_items,total_price', {
+        .select('id,name,whatsapp,delivery_datetime,delivery_address,delivery_type,delivery_cost,is_paid,is_delivered,total_items,total_price,remark', {
           count: 'exact',
         })
         .or('is_paid.eq.false,is_delivered.eq.false,is_paid.is.null,is_delivered.is.null')
@@ -2609,6 +2610,12 @@ const SalesOrder = () => {
                                   <span className="whitespace-nowrap">{reportDateTimeParts.time}</span>
                                 </div>
                               </div>
+                            </div>
+                          </div>
+                          <div className="col-span-3">
+                            <div className="rounded-lg border border-cyan-100 bg-cyan-50/60 p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Catatan</p>
+                              <p className="mt-1 text-sm font-medium">{reportRecord.remark || '-'}</p>
                             </div>
                           </div>
                         </div>
