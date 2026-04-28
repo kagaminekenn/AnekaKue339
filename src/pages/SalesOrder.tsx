@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
-import { BanknoteArrowUp, BanknoteX, CalendarDays, CheckCircle, CheckCircle2, Clock3, Download, Eye, EyeOff, FileText, Minus, MinusCircle, PackageCheck, PackageX, Pencil, Plus, Search, Trash2, TrendingDown, TrendingUp, X, XCircle, Send } from 'lucide-react';
+import { BanknoteArrowUp, BanknoteX, CalendarDays, CheckCircle2, Clock3, Download, Eye, EyeOff, FileText, Minus, MinusCircle, PackageCheck, PackageX, Pencil, Plus, Search, Trash2, TrendingDown, TrendingUp, X, XCircle, Send } from 'lucide-react';
 import Select, { type InputActionMeta, type SingleValue } from 'react-select';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -41,6 +41,7 @@ type OrderSalesRecord = {
   is_delivered: boolean | null;
   total_items: number;
   total_price: number;
+  remark: string | null;
 };
 
 type OrderSalesQueryResult = {
@@ -196,13 +197,45 @@ const StatusIcon = ({ value, label }: { value: boolean | null; label: string }) 
   );
 };
 
+const OrderStatusBadge = ({ isPaid, isDelivered }: { isPaid: boolean | null; isDelivered: boolean | null }) => {
+  const paid = isPaid === true;
+  const delivered = isDelivered === true;
+
+  if (paid && delivered) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+        <CheckCircle2 className="h-3.5 w-3.5" />
+        Done
+      </span>
+    );
+  }
+
+  if (paid && !delivered) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+        <PackageX className="h-3.5 w-3.5" />
+        Pending Delivery
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-800">
+      <BanknoteX className="h-3.5 w-3.5" />
+      Pending Payment
+    </span>
+  );
+};
+
 const SalesOrder = () => {
   const queryClient = useQueryClient();
-  const [currentPage, setCurrentPage] = useState(1);
+  const [ongoingCurrentPage, setOngoingCurrentPage] = useState(1);
+  const [pastOrdersCurrentPage, setPastOrdersCurrentPage] = useState(1);
   const [searchInput, setSearchInput] = useState('');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [sortField, setSortField] = useState<SortField>('delivery_datetime');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [isPastOrdersOpen, setIsPastOrdersOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>('add');
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
@@ -676,7 +709,8 @@ const SalesOrder = () => {
   };
 
   const handleSort = (field: SortField) => {
-    setCurrentPage(1);
+    setOngoingCurrentPage(1);
+    setPastOrdersCurrentPage(1);
     if (field === sortField) {
       setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
       return;
@@ -715,7 +749,8 @@ const SalesOrder = () => {
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       setSearchKeyword(searchInput.trim());
-      setCurrentPage(1);
+      setOngoingCurrentPage(1);
+      setPastOrdersCurrentPage(1);
     }, 350);
 
     return () => {
@@ -793,9 +828,47 @@ const SalesOrder = () => {
   const animatedPlaceholderText = currentPlaceholderWord.slice(0, placeholderCharCount);
 
   const { data: orderSalesData, isLoading, isFetching } = useQuery<OrderSalesQueryResult>({
-    queryKey: ['order-sales', currentPage, searchKeyword, sortField, sortDirection],
+    queryKey: ['order-sales-ongoing', ongoingCurrentPage, searchKeyword, sortField, sortDirection],
     queryFn: async () => {
-      const from = (currentPage - 1) * TABLE_PAGE_SIZE;
+      const from = (ongoingCurrentPage - 1) * TABLE_PAGE_SIZE;
+      const to = from + TABLE_PAGE_SIZE - 1;
+
+      let query = supabase
+        .from('order_sales')
+        .select('id,name,whatsapp,delivery_datetime,delivery_address,delivery_type,delivery_cost,is_paid,is_delivered,total_items,total_price,remark', {
+          count: 'exact',
+        })
+        .or('is_paid.eq.false,is_delivered.eq.false,is_paid.is.null,is_delivered.is.null')
+        .order(sortField, { ascending: sortDirection === 'asc', nullsFirst: false })
+        .order('id', { ascending: false });
+
+      if (searchKeyword) {
+        const escapedKeyword = searchKeyword.replace(/,/g, '\\,');
+        query = query.or(`name.ilike.%${escapedKeyword}%,whatsapp.ilike.%${escapedKeyword}%`);
+      }
+
+      const { data, error, count } = await query.range(from, to);
+
+      if (error) {
+        throw error;
+      }
+
+      return {
+        records: (data ?? []) as OrderSalesRecord[],
+        totalItems: count ?? 0,
+      };
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const {
+    data: pastOrdersData,
+    isLoading: isPastOrdersLoading,
+    isFetching: isPastOrdersFetching,
+  } = useQuery<OrderSalesQueryResult>({
+    queryKey: ['order-sales-past', pastOrdersCurrentPage, searchKeyword, sortField, sortDirection],
+    queryFn: async () => {
+      const from = (pastOrdersCurrentPage - 1) * TABLE_PAGE_SIZE;
       const to = from + TABLE_PAGE_SIZE - 1;
 
       let query = supabase
@@ -803,6 +876,8 @@ const SalesOrder = () => {
         .select('id,name,whatsapp,delivery_datetime,delivery_address,delivery_type,delivery_cost,is_paid,is_delivered,total_items,total_price', {
           count: 'exact',
         })
+        .eq('is_paid', true)
+        .eq('is_delivered', true)
         .order(sortField, { ascending: sortDirection === 'asc', nullsFirst: false })
         .order('id', { ascending: false });
 
@@ -974,11 +1049,15 @@ const SalesOrder = () => {
     staleTime: 1000 * 60 * 5,
   });
 
-  const records = orderSalesData?.records ?? [];
+  const ongoingRecords = orderSalesData?.records ?? [];
+  const pastOrderRecords = pastOrdersData?.records ?? [];
   const loyalCustomers = loyalCustomersData ?? [];
   const addPricingRows = addOrderPricingRows ?? [];
-  const totalItems = orderSalesData?.totalItems ?? 0;
+  const ongoingTotalItems = orderSalesData?.totalItems ?? 0;
+  const pastOrdersTotalItems = pastOrdersData?.totalItems ?? 0;
+  const totalMatchingItems = ongoingTotalItems + pastOrdersTotalItems;
   const loading = isLoading || isFetching;
+  const pastOrdersLoading = isPastOrdersLoading || isPastOrdersFetching;
   const hasKeyword = useMemo(() => searchKeyword.length > 0, [searchKeyword]);
   const detailRecords = orderSalesDetailItemsData?.records ?? [];
   const detailTotalItems = orderSalesDetailItemsData?.totalItems ?? 0;
@@ -1520,161 +1599,304 @@ const SalesOrder = () => {
           </button>
         </div>
 
-        {loading ? (
-          <div className="p-10 text-center text-slate-500">Loading order sales...</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="modern-table w-full min-w-[1120px]">
-              <thead className="border-b border-cyan-100">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('name')} className="inline-flex cursor-pointer items-center gap-1">
-                      Name
-                      <span>{getSortIndicator('name')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('whatsapp')} className="inline-flex cursor-pointer items-center gap-1">
-                      Whatsapp
-                      <span>{getSortIndicator('whatsapp')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('delivery_datetime')} className="inline-flex cursor-pointer items-center gap-1">
-                      Delivery Datetime
-                      <span>{getSortIndicator('delivery_datetime')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('delivery_type')} className="inline-flex cursor-pointer items-center gap-1">
-                      Delivery Type
-                      <span>{getSortIndicator('delivery_type')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('total_items')} className="inline-flex cursor-pointer items-center gap-1">
-                      Total Items
-                      <span>{getSortIndicator('total_items')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('total_price')} className="inline-flex cursor-pointer items-center gap-1">
-                      Total Price
-                      <span>{getSortIndicator('total_price')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('is_paid')} className="inline-flex cursor-pointer items-center gap-1">
-                      Paid
-                      <span>{getSortIndicator('is_paid')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('is_delivered')} className="inline-flex cursor-pointer items-center gap-1">
-                      Delivered
-                      <span>{getSortIndicator('is_delivered')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-cyan-50 bg-white/80">
-                {records.map((record) => {
-                  const deliveryDateTime = formatDeliveryDateTime(record.delivery_datetime);
+        <div className="space-y-6 p-4 sm:p-6">
+          <div className="overflow-hidden rounded-2xl border border-cyan-100 bg-white">
+            <div className="border-b border-cyan-100 bg-cyan-50/50 px-4 py-3 sm:px-6">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-cyan-800">Ongoing</h2>
+            </div>
 
-                  return (
-                  <tr key={record.id}>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.name || '-'}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.whatsapp || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-slate-900">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 whitespace-nowrap">
-                          <CalendarDays className="h-4 w-4 text-cyan-700" />
-                          <span>{deliveryDateTime.date}</span>
-                        </div>
-                        <div className="flex items-center gap-2 whitespace-nowrap text-slate-600">
-                          <Clock3 className="h-4 w-4 text-cyan-700" />
-                          <span>{deliveryDateTime.time}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-900">{record.delivery_type || '-'}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.total_items ?? 0}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
-                      {formatCurrency(record.total_price ?? 0)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-900">
-                      <div className="flex justify-center">
-                        <StatusIcon value={record.is_paid} label="Paid" />
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-900">
-                      <div className="flex justify-center">
-                        <StatusIcon value={record.is_delivered} label="Delivered" />
-                      </div>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenDetail(record.id)}
-                          title="View detail"
-                          aria-label={`View detail ${record.name}`}
-                          className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-slate-200 text-slate-700 transition-colors hover:bg-slate-50"
-                        >
-                          <Eye className="h-4 w-4" />
+            {loading ? (
+              <div className="p-10 text-center text-slate-500">Loading order sales...</div>
+            ) : ongoingRecords.length === 0 ? (
+              <div className="p-10 text-center text-slate-500">
+                {hasKeyword ? 'Tidak ada data ongoing yang cocok dengan pencarian.' : 'Tidak ada ongoing order.'}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="modern-table w-full min-w-[1040px]">
+                  <thead className="border-b border-cyan-100">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('name')} className="inline-flex cursor-pointer items-center gap-1">
+                          Name
+                          <span>{getSortIndicator('name')}</span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditModal(record.id)}
-                          title="Edit"
-                          aria-label={`Edit ${record.name}`}
-                          className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-cyan-200 text-cyan-700 transition-colors hover:bg-cyan-50"
-                        >
-                          <Pencil className="h-4 w-4" />
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('whatsapp')} className="inline-flex cursor-pointer items-center gap-1">
+                          Whatsapp
+                          <span>{getSortIndicator('whatsapp')}</span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenReportModal(record)}
-                          title="Generate report"
-                          aria-label={`Generate report for ${record.name}`}
-                          className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-violet-300 px-3 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-50"
-                        >
-                          <FileText className="h-4 w-4" />
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('delivery_datetime')} className="inline-flex cursor-pointer items-center gap-1">
+                          Delivery Datetime
+                          <span>{getSortIndicator('delivery_datetime')}</span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void handleDeleteOrder(record);
-                          }}
-                          disabled={deletingOrderId === record.id}
-                          title="Delete"
-                          aria-label={`Delete ${record.name}`}
-                          className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-rose-200 text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Trash2 className="h-4 w-4" />
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('delivery_type')} className="inline-flex cursor-pointer items-center gap-1">
+                          Delivery Type
+                          <span>{getSortIndicator('delivery_type')}</span>
                         </button>
-                      </div>
-                    </td>
-                  </tr>
-                )})}
-              </tbody>
-            </table>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('total_items')} className="inline-flex cursor-pointer items-center gap-1">
+                          Total Items
+                          <span>{getSortIndicator('total_items')}</span>
+                        </button>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('total_price')} className="inline-flex cursor-pointer items-center gap-1">
+                          Total Price
+                          <span>{getSortIndicator('total_price')}</span>
+                        </button>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-cyan-50 bg-white/80">
+                    {ongoingRecords.map((record) => {
+                      const deliveryDateTime = formatDeliveryDateTime(record.delivery_datetime);
+
+                      return (
+                      <tr key={record.id}>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
+                          <OrderStatusBadge isPaid={record.is_paid} isDelivered={record.is_delivered} />
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.name || '-'}</td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.whatsapp || '-'}</td>
+                        <td className="px-6 py-4 text-sm text-slate-900">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 whitespace-nowrap">
+                              <CalendarDays className="h-4 w-4 text-cyan-700" />
+                              <span>{deliveryDateTime.date}</span>
+                            </div>
+                            <div className="flex items-center gap-2 whitespace-nowrap text-slate-600">
+                              <Clock3 className="h-4 w-4 text-cyan-700" />
+                              <span>{deliveryDateTime.time}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-900">{record.delivery_type || '-'}</td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.total_items ?? 0}</td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
+                          {formatCurrency(record.total_price ?? 0)}
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDetail(record.id)}
+                              title="View detail"
+                              aria-label={`View detail ${record.name}`}
+                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-slate-200 text-slate-700 transition-colors hover:bg-slate-50"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(record.id)}
+                              title="Edit"
+                              aria-label={`Edit ${record.name}`}
+                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-cyan-200 text-cyan-700 transition-colors hover:bg-cyan-50"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReportModal(record)}
+                              title="Generate report"
+                              aria-label={`Generate report for ${record.name}`}
+                              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-violet-300 px-3 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-50"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void handleDeleteOrder(record);
+                              }}
+                              disabled={deletingOrderId === record.id}
+                              title="Delete"
+                              aria-label={`Delete ${record.name}`}
+                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-rose-200 text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )})}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        )}
 
-        {!loading && records.length === 0 && (
-          <div className="p-10 text-center text-slate-500">
-            {hasKeyword ? 'Tidak ada data yang cocok dengan pencarian.' : 'Belum ada data order sales.'}
-          </div>
-        )}
+          <details
+            className="overflow-hidden rounded-2xl border border-cyan-100 bg-white"
+            onToggle={(event) => setIsPastOrdersOpen(event.currentTarget.open)}
+          >
+            <summary className="cursor-pointer list-none border-b border-cyan-100 bg-cyan-50/50 px-4 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-cyan-800 sm:px-6">
+              All Past Orders
+            </summary>
 
-        <Pagination
-          currentPage={currentPage}
-          totalItems={totalItems}
-          pageSize={TABLE_PAGE_SIZE}
-          onPageChange={setCurrentPage}
-        />
+            {pastOrdersLoading ? (
+              <div className="p-10 text-center text-slate-500">Loading order sales...</div>
+            ) : pastOrderRecords.length === 0 ? (
+              <div className="p-10 text-center text-slate-500">
+                {hasKeyword ? 'Tidak ada data done yang cocok dengan pencarian.' : 'Belum ada past order.'}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="modern-table w-full min-w-[1040px]">
+                  <thead className="border-b border-cyan-100">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('name')} className="inline-flex cursor-pointer items-center gap-1">
+                          Name
+                          <span>{getSortIndicator('name')}</span>
+                        </button>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('whatsapp')} className="inline-flex cursor-pointer items-center gap-1">
+                          Whatsapp
+                          <span>{getSortIndicator('whatsapp')}</span>
+                        </button>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('delivery_datetime')} className="inline-flex cursor-pointer items-center gap-1">
+                          Delivery Datetime
+                          <span>{getSortIndicator('delivery_datetime')}</span>
+                        </button>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('delivery_type')} className="inline-flex cursor-pointer items-center gap-1">
+                          Delivery Type
+                          <span>{getSortIndicator('delivery_type')}</span>
+                        </button>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('total_items')} className="inline-flex cursor-pointer items-center gap-1">
+                          Total Items
+                          <span>{getSortIndicator('total_items')}</span>
+                        </button>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                        <button type="button" onClick={() => handleSort('total_price')} className="inline-flex cursor-pointer items-center gap-1">
+                          Total Price
+                          <span>{getSortIndicator('total_price')}</span>
+                        </button>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-cyan-50 bg-white/80">
+                    {pastOrderRecords.map((record) => {
+                      const deliveryDateTime = formatDeliveryDateTime(record.delivery_datetime);
+
+                      return (
+                      <tr key={record.id}>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
+                          <OrderStatusBadge isPaid={record.is_paid} isDelivered={record.is_delivered} />
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.name || '-'}</td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.whatsapp || '-'}</td>
+                        <td className="px-6 py-4 text-sm text-slate-900">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 whitespace-nowrap">
+                              <CalendarDays className="h-4 w-4 text-cyan-700" />
+                              <span>{deliveryDateTime.date}</span>
+                            </div>
+                            <div className="flex items-center gap-2 whitespace-nowrap text-slate-600">
+                              <Clock3 className="h-4 w-4 text-cyan-700" />
+                              <span>{deliveryDateTime.time}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-900">{record.delivery_type || '-'}</td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.total_items ?? 0}</td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
+                          {formatCurrency(record.total_price ?? 0)}
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDetail(record.id)}
+                              title="View detail"
+                              aria-label={`View detail ${record.name}`}
+                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-slate-200 text-slate-700 transition-colors hover:bg-slate-50"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(record.id)}
+                              title="Edit"
+                              aria-label={`Edit ${record.name}`}
+                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-cyan-200 text-cyan-700 transition-colors hover:bg-cyan-50"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReportModal(record)}
+                              title="Generate report"
+                              aria-label={`Generate report for ${record.name}`}
+                              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-violet-300 px-3 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-50"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void handleDeleteOrder(record);
+                              }}
+                              disabled={deletingOrderId === record.id}
+                              title="Delete"
+                              aria-label={`Delete ${record.name}`}
+                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-rose-200 text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )})}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {!pastOrdersLoading && isPastOrdersOpen && pastOrderRecords.length > 0 && (
+              <Pagination
+                currentPage={pastOrdersCurrentPage}
+                totalItems={pastOrdersTotalItems}
+                pageSize={TABLE_PAGE_SIZE}
+                onPageChange={setPastOrdersCurrentPage}
+              />
+            )}
+          </details>
+
+          {!loading && !pastOrdersLoading && totalMatchingItems === 0 && (
+            <div className="rounded-2xl border border-cyan-100 bg-white p-10 text-center text-slate-500">
+              {hasKeyword ? 'Tidak ada data yang cocok dengan pencarian.' : 'Belum ada data order sales.'}
+            </div>
+          )}
+
+          {!loading && ongoingRecords.length > 0 && (
+            <Pagination
+              currentPage={ongoingCurrentPage}
+              totalItems={ongoingTotalItems}
+              pageSize={TABLE_PAGE_SIZE}
+              onPageChange={setOngoingCurrentPage}
+            />
+          )}
+        </div>
       </div>
 
       {isAddModalOpen && (
@@ -2388,6 +2610,12 @@ const SalesOrder = () => {
                                   <span className="whitespace-nowrap">{reportDateTimeParts.time}</span>
                                 </div>
                               </div>
+                            </div>
+                          </div>
+                          <div className="col-span-3">
+                            <div className="rounded-lg border border-cyan-100 bg-cyan-50/60 p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Catatan</p>
+                              <p className="mt-1 text-sm font-medium">{reportRecord.remark || '-'}</p>
                             </div>
                           </div>
                         </div>

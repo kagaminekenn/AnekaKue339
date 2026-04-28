@@ -103,31 +103,86 @@ def tomorrow_window_utc() -> tuple[datetime, datetime]:
     )
 
 
-def fetch_due_orders() -> list[dict]:
+def today_window_utc() -> tuple[datetime, datetime]:
+    """Build UTC window for 'today' based on business timezone."""
+    business_tz = _get_business_tz()
+    now_local = datetime.now(business_tz)
+    today_local_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_local_end = today_local_start + timedelta(days=1)
+    return (
+        today_local_start.astimezone(timezone.utc),
+        today_local_end.astimezone(timezone.utc),
+    )
+
+
+def fetch_orders_in_window(start_utc: datetime, end_utc: datetime) -> list[dict]:
     """
-    Fetch orders where:
-      - delivery_datetime falls on tomorrow (any time)
-      - is_reminded = False
-    Uses a business-timezone date window converted to UTC for timestamptz.
+    Fetch orders where delivery_datetime is in [start_utc, end_utc).
+    Uses UTC window for timestamptz filtering.
     """
-    tomorrow_start, tomorrow_end = tomorrow_window_utc()
     print(
         "ℹ️ Query window UTC:",
-        tomorrow_start.isoformat(),
+        start_utc.isoformat(),
         "to",
-        tomorrow_end.isoformat(),
+        end_utc.isoformat(),
         f"(business TZ: {REMINDER_TIMEZONE})",
     )
 
     response = (
         supabase.table("order_sales")
         .select("id, name, whatsapp, total_items, delivery_datetime, delivery_address, delivery_type")
-        .gte("delivery_datetime", tomorrow_start.isoformat())
-        .lt("delivery_datetime",  tomorrow_end.isoformat())
-        .eq("is_reminded", False)
+        .gte("delivery_datetime", start_utc.isoformat())
+        .lt("delivery_datetime", end_utc.isoformat())
         .execute()
     )
     return response.data or []
+
+
+def fetch_reminders_map(order_ids: list[int]) -> dict[int, dict]:
+    """Read reminder rows keyed by order_sales_id."""
+    if not order_ids:
+        return {}
+
+    response = (
+        supabase.table("reminders")
+        .select("id, order_sales_id, is_reminded_tomorrow, is_reminded_today")
+        .in_("order_sales_id", order_ids)
+        .execute()
+    )
+
+    reminders = response.data or []
+    return {int(row["order_sales_id"]): row for row in reminders}
+
+
+def ensure_reminders_exist(order_ids: list[int], reminders_map: dict[int, dict]) -> dict[int, dict]:
+    """Initialize missing reminder rows with both flags=True to match new flow."""
+    missing_ids = [order_id for order_id in order_ids if order_id not in reminders_map]
+    if not missing_ids:
+        return reminders_map
+
+    payload = [
+        {
+            "order_sales_id": order_id,
+            "is_reminded_tomorrow": True,
+            "is_reminded_today": True,
+        }
+        for order_id in missing_ids
+    ]
+    response = (
+        supabase.table("reminders")
+        .insert(payload)
+        .execute()
+    )
+
+    inserted_rows = response.data or []
+    for row in inserted_rows:
+        reminders_map[int(row["order_sales_id"])] = row
+
+    print(
+        "ℹ️ Initialized reminder rows (default true/true) for order IDs:",
+        ", ".join(str(order_id) for order_id in missing_ids),
+    )
+    return reminders_map
 
 
 def fetch_order_items(order_id: int) -> list[dict]:
@@ -141,9 +196,16 @@ def fetch_order_items(order_id: int) -> list[dict]:
     return response.data or []
 
 
-def mark_as_reminded(order_id: int) -> None:
-    """Flip is_reminded = True after a successful notification."""
-    supabase.table("order_sales").update({"is_reminded": True}).eq("id", order_id).execute()
+def mark_reminder_flag(order_id: int, reminder_type: str) -> None:
+    """Flip the reminder flag in reminders table after successful notification."""
+    if reminder_type == "tomorrow":
+        payload = {"is_reminded_tomorrow": True}
+    elif reminder_type == "today":
+        payload = {"is_reminded_today": True}
+    else:
+        raise RuntimeError(f"Unknown reminder_type: {reminder_type}")
+
+    supabase.table("reminders").update(payload).eq("order_sales_id", order_id).execute()
 
 
 def format_delivery_datetime(dt_str: str) -> str:
@@ -174,6 +236,23 @@ def build_message(order: dict, items: list[dict]) -> str:
     return msg
 
 
+def should_send_today_reminder(delivery_dt_str: str) -> bool:
+    """Send 'today' reminder only on the H-6 hourly window.
+
+    With an hourly scheduler, exact equality to 6 hours is too strict, so we
+    treat H-6 as the window where remaining time is in (5h, 6h].
+    """
+    business_tz = _get_business_tz()
+    now_local = datetime.now(business_tz)
+    delivery_local = datetime.fromisoformat(delivery_dt_str.replace("Z", "+00:00")).astimezone(business_tz)
+
+    if delivery_local.date() != now_local.date():
+        return False
+
+    diff = delivery_local - now_local
+    return timedelta(hours=5) < diff <= timedelta(hours=6)
+
+
 async def run():
     bot = Bot(token=TELEGRAM_TOKEN)
     target_chat = _normalize_chat_target(TELEGRAM_CHAT_ID)
@@ -192,19 +271,49 @@ async def run():
         await _print_debug_chat_hints(bot)
         raise
 
-    orders = fetch_due_orders()
+    tomorrow_start, tomorrow_end = tomorrow_window_utc()
+    today_start, today_end = today_window_utc()
+
+    tomorrow_orders = fetch_orders_in_window(tomorrow_start, tomorrow_end)
+    today_orders_all = fetch_orders_in_window(today_start, today_end)
+    today_orders = [
+        order for order in today_orders_all if should_send_today_reminder(str(order["delivery_datetime"]))
+    ]
+
+    all_orders = tomorrow_orders + today_orders
+    order_ids = sorted({int(order["id"]) for order in all_orders})
+    reminders_map = fetch_reminders_map(order_ids)
+    reminders_map = ensure_reminders_exist(order_ids, reminders_map)
+
+    tomorrow_to_send = [
+        order
+        for order in tomorrow_orders
+        if reminders_map.get(int(order["id"]), {}).get("is_reminded_tomorrow") is False
+    ]
+    today_to_send = [
+        order
+        for order in today_orders
+        if reminders_map.get(int(order["id"]), {}).get("is_reminded_today") is False
+    ]
+
+    orders = [(order, "tomorrow") for order in tomorrow_to_send] + [
+        (order, "today") for order in today_to_send
+    ]
 
     if not orders:
-        print("✅ No upcoming deliveries to remind.")
+        print("✅ No deliveries that match reminder flags to send.")
         return
 
-    print(f"📬 Found {len(orders)} order(s) to remind.")
-    print("📋 Order IDs:", ", ".join(str(order["id"]) for order in orders))
+    print(
+        f"📬 Found {len(orders)} reminder(s) to send "
+        f"(tomorrow={len(tomorrow_to_send)}, today={len(today_to_send)})."
+    )
+    print("📋 Order IDs:", ", ".join(str(order["id"]) for order, _ in orders))
 
     sent_count = 0
     fail_count = 0
 
-    for order in orders:
+    for order, reminder_type in orders:
         try:
             items = fetch_order_items(order["id"])
             message = build_message(order, items)
@@ -215,9 +324,11 @@ async def run():
                 parse_mode = ParseMode.HTML,
             )
 
-            mark_as_reminded(order["id"])
+            mark_reminder_flag(order["id"], reminder_type)
             sent_count += 1
-            print(f"  ✔ Reminded order #{order['id']} — {order['name']}")
+            print(
+                f"  ✔ Reminded ({reminder_type}) order #{order['id']} — {order['name']}"
+            )
 
         except Exception as e:
             fail_count += 1
