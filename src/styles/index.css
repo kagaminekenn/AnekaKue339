@@ -40,10 +40,16 @@ html {
 body {
   margin: 0;
   min-height: 100%;
+  overflow-x: hidden;
   background:
     radial-gradient(circle at 8% 4%, #dff8f7 0%, transparent 28%),
     radial-gradient(circle at 94% 8%, #e6f0ff 0%, transparent 24%),
     linear-gradient(170deg, #f8fafc 0%, #f4f4f5 100%);
+}
+
+button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #root {
