@@ -433,7 +433,7 @@ const PricingOffice = () => {
       </div>
 
       <div className="glass-panel overflow-hidden rounded-2xl border border-cyan-100">
-        <div className="flex items-center justify-between border-b border-cyan-100 px-4 py-3 sm:px-6">
+        <div className="flex flex-col gap-2 border-b border-cyan-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="inline-flex flex-wrap items-center gap-2 rounded-xl bg-cyan-50 p-1">
             {SELLING_LOCATIONS.map((location) => {
               const isActive = selectedLocationFilter === location;

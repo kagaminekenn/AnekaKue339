@@ -64,7 +64,7 @@ const Pagination = ({
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <div className="flex items-center gap-1">
+        <div className="hidden items-center gap-1 sm:flex">
           {visiblePages.map((page, index) => {
             if (page === '...') {
               return (
@@ -93,6 +93,9 @@ const Pagination = ({
             );
           })}
         </div>
+        <span className="min-w-[3.5rem] text-center text-sm font-medium text-slate-600 sm:hidden">
+          {currentPage} / {totalPages}
+        </span>
         <button
           type="button"
           onClick={goToNext}
