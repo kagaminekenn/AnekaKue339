@@ -20,6 +20,7 @@ type OfficeSalesDetailRecord = {
   item_name: string
   solds: number
   leftovers: number | null
+  covers: number | null
   total_revenue: number
   total_cost: number
   net_income: number
@@ -84,19 +85,6 @@ const minusDays = (days: number) => {
   const now = new Date()
   now.setDate(now.getDate() - days)
   return toDateInput(now)
-}
-
-const toDateKeyFromDateTime = (value: string | null) => {
-  if (!value) {
-    return null
-  }
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return null
-  }
-
-  return toDateInput(date)
 }
 
 const sumBy = <T,>(records: T[], selector: (record: T) => number) =>
@@ -232,7 +220,7 @@ const Dashboard = () => {
         officeIds.length > 0
           ? supabase
             .from('office_sales_detail_view')
-            .select('office_sales_id,item_name,solds,leftovers,total_revenue,total_cost,net_income')
+            .select('office_sales_id,item_name,solds,leftovers,covers,total_revenue,total_cost,net_income')
             .in('office_sales_id', officeIds)
           : Promise.resolve({ data: [], error: null }),
         orderIds.length > 0
@@ -403,26 +391,13 @@ const Dashboard = () => {
       current.officeNet += record.net_income
     }
 
-    for (const record of orderSales) {
-      const key = toDateKeyFromDateTime(record.delivery_datetime)
-      if (!key) {
-        continue
-      }
-      const current = base.get(key)
-      if (!current) {
-        continue
-      }
-      current.orderRevenue += record.total_price
-      current.orderNet += record.net_income ?? ((record.total_price ?? 0) - (record.total_cost ?? 0))
-    }
+    return Array.from(base.values()).filter((series) => series.officeRevenue > 0)
+  }, [dateFrom, dateTo, officeSales])
 
-    return Array.from(base.values())
-  }, [dateFrom, dateTo, officeSales, orderSales])
-
-  const visibleSeries = daySeries.slice(-10)
+  const visibleSeries = daySeries.slice(-7)
   const maxVisibleRevenue = Math.max(
     1,
-    ...visibleSeries.map((series) => series.officeRevenue + series.orderRevenue),
+    ...visibleSeries.map((series) => series.officeRevenue),
   )
 
   const bestDay = useMemo(() => {
@@ -449,6 +424,36 @@ const Dashboard = () => {
     const sorted = Array.from(grouped.entries()).sort((first, second) => second[1] - first[1])
     return sorted[0] ?? null
   }, [officeDetails])
+
+  const highestCovers = useMemo(() => {
+    if (officeDetails.length === 0 || officeSales.length === 0) {
+      return null
+    }
+
+    const dateByOfficeId = new Map<number, string>()
+    for (const record of officeSales) {
+      dateByOfficeId.set(record.id, record.sales_date)
+    }
+
+    let best: { dateKey: string; itemName: string; covers: number } | null = null
+    for (const record of officeDetails) {
+      const dateKey = dateByOfficeId.get(record.office_sales_id)
+      if (!dateKey) {
+        continue
+      }
+
+      const covers = record.covers ?? 0
+      if (!best || covers > best.covers) {
+        best = {
+          dateKey,
+          itemName: record.item_name || 'Unknown Item',
+          covers,
+        }
+      }
+    }
+
+    return best
+  }, [officeDetails, officeSales])
 
   return (
     <div className="page-enter space-y-6">
@@ -602,23 +607,21 @@ const Dashboard = () => {
             <article className="glass-panel rounded-2xl border border-cyan-100 p-4 xl:col-span-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Daily Trend (Last 10 Days)</h2>
-                  <p className="text-sm text-slate-500">Combined office and order sales channels.</p>
+                  <h2 className="text-lg font-semibold text-slate-900">Daily Trend (Last 7 Days)</h2>
+                  <p className="text-sm text-slate-500">Office sales performance.</p>
                 </div>
                 <CalendarDays className="h-5 w-5 text-cyan-700" />
               </div>
 
               <div className="mt-4 space-y-3">
                 {visibleSeries.map((series) => {
-                  const totalDayRevenue = series.officeRevenue + series.orderRevenue
-                  const totalDayNet = series.officeNet + series.orderNet
-                  const barPercent = (totalDayRevenue / maxVisibleRevenue) * 100
+                  const barPercent = (series.officeRevenue / maxVisibleRevenue) * 100
 
                   return (
                     <div key={series.dateKey} className="rounded-xl border border-slate-100 bg-white/70 p-3">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <p className="text-sm font-semibold text-slate-700">{new Date(`${series.dateKey}T00:00:00`).toLocaleDateString('en-US', { day: '2-digit', month: 'short' })}</p>
-                        <p className="text-sm font-semibold text-slate-700">{formatCurrency(totalDayRevenue)}</p>
+                        <p className="text-sm font-semibold text-slate-700">{formatCurrency(series.officeRevenue)}</p>
                       </div>
                       <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                         <div
@@ -626,8 +629,8 @@ const Dashboard = () => {
                           style={{ width: `${Math.max(3, barPercent)}%` }}
                         />
                       </div>
-                      <p className={`mt-2 text-xs font-semibold ${totalDayNet >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        Net {formatCurrency(totalDayNet)}
+                      <p className={`mt-2 text-xs font-semibold ${series.officeNet >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        Net {formatCurrency(series.officeNet)}
                       </p>
                     </div>
                   )
@@ -771,6 +774,31 @@ const Dashboard = () => {
                     </div>
                   </div>
                 ))}
+              </div>
+            </article>
+          </section>
+
+          <section className="grid grid-cols-1 gap-4">
+            <article className="glass-panel rounded-2xl border border-cyan-100 p-4">
+              <h2 className="text-lg font-semibold text-slate-900">Highest Covers</h2>
+              <p className="text-sm text-slate-500">Top covers record within the selected date range.</p>
+              <div className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Day</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800">
+                      {highestCovers ? new Date(`${highestCovers.dateKey}T00:00:00`).toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' }) : '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Item Name</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800">{highestCovers?.itemName ?? '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Covers</p>
+                    <p className="mt-1 text-sm font-semibold text-cyan-800">{(highestCovers?.covers ?? 0).toLocaleString('en-US')}</p>
+                  </div>
+                </div>
               </div>
             </article>
           </section>
