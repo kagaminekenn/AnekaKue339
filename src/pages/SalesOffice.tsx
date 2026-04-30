@@ -535,26 +535,6 @@ const SalesOffice = () => {
     setCurrentPage(1);
   };
 
-  const handleSort = (nextKey: SortKey) => {
-    if (sortKey === nextKey) {
-      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-      setCurrentPage(1);
-      return;
-    }
-
-    setSortKey(nextKey);
-    setSortDirection('asc');
-    setCurrentPage(1);
-  };
-
-  const getSortIndicator = (key: SortKey) => {
-    if (sortKey !== key) {
-      return '\u2195';
-    }
-
-    return sortDirection === 'asc' ? '\u2191' : '\u2193';
-  };
-
   const getDetailSortIndicator = (key: DetailSortKey) => {
     if (detailSortKey !== key) {
       return '\u2195';
