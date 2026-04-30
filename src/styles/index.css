@@ -1,35 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --text: #374151;
-  --text-h: #0f172a;
-  --muted: #64748b;
-  --bg: #f6f7f5;
+  --text: #0f172a;
+  --text-secondary: #64748b;
+  --bg: #f8fafc;
   --surface: #ffffff;
-  --surface-soft: #f8fafc;
-  --border: #dbe2ea;
-  --accent: #0e7490;
-  --accent-strong: #155e75;
-  --accent-soft: #ecfeff;
-  --shadow: 0 20px 45px -30px rgba(15, 23, 42, 0.35);
+  --border: #e2e8f0;
+  --accent: #0891b2;
+  --accent-hover: #0e7490;
+  --accent-bg: #ecfeff;
+  --accent-border: #cffafe;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.07);
 
-  --sans: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
-  --heading: 'Sora', 'Plus Jakarta Sans', sans-serif;
+  --sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 16px/150% var(--sans);
-  letter-spacing: 0;
-  color-scheme: light;
+  font: 16px/1.5 var(--sans);
   color: var(--text);
   background: var(--bg);
-  font-synthesis: none;
+  color-scheme: light;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
 html {
@@ -41,30 +34,24 @@ body {
   margin: 0;
   min-height: 100%;
   overflow-x: hidden;
-  background:
-    radial-gradient(circle at 8% 4%, #dff8f7 0%, transparent 28%),
-    radial-gradient(circle at 94% 8%, #e6f0ff 0%, transparent 24%),
-    linear-gradient(170deg, #f8fafc 0%, #f4f4f5 100%);
+  background: #f8fafc;
 }
 
 button {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
 }
 
 #root {
   width: 100%;
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
+h1, h2, h3 {
+  margin: 0;
   font-weight: 700;
-  color: var(--text-h);
+  color: var(--text);
 }
 
 p {
@@ -75,10 +62,11 @@ p {
   box-sizing: border-box;
 }
 
-@keyframes floatIn {
+/* Page enter animation */
+@keyframes fadeSlideUp {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -87,60 +75,71 @@ p {
 }
 
 .page-enter {
-  animation: floatIn 0.45s ease-out;
+  animation: fadeSlideUp 0.25s ease-out;
 }
 
+/* Content card (replaces glass-panel) */
 .glass-panel {
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.78));
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(10px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
+/* Page section header */
 .page-header {
-  border: 1px solid rgba(14, 116, 144, 0.18);
-  border-radius: 1.1rem;
-  background:
-    radial-gradient(circle at 88% 12%, rgba(14, 116, 144, 0.18), transparent 45%),
-    linear-gradient(120deg, rgba(240, 249, 255, 0.95), rgba(236, 253, 245, 0.92));
-  padding: 1.15rem;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 0.875rem;
+  background: linear-gradient(135deg, #f0f9ff 0%, var(--accent-bg) 100%);
 }
 
 .page-title {
-  margin-top: 0.4rem;
+  font-size: clamp(1.35rem, 2vw, 1.75rem);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--text);
+  margin-top: 0.2rem;
   margin-bottom: 0;
-  font-size: clamp(1.5rem, 2.4vw, 2rem);
-  letter-spacing: -0.02em;
 }
 
 .page-subtitle {
-  margin-top: 0.45rem;
-  color: var(--muted);
-  font-size: 0.96rem;
+  margin-top: 0.3rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
 }
 
+/* Table */
 .modern-table thead {
-  background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+  background: #f8fafc;
+}
+
+.modern-table thead th {
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
 }
 
 .modern-table tbody tr {
-  transition: background-color 180ms ease;
+  transition: background-color 150ms;
 }
 
 .modern-table tbody tr:hover {
   background-color: #f8fafc;
 }
 
+/* Form input */
 .modern-input {
-  border-radius: 0.7rem;
-  border: 1px solid #cbd5e1;
+  border-radius: 0.625rem;
+  border: 1.5px solid #cbd5e1;
   background-color: #fff;
-  transition: border-color 180ms ease, box-shadow 180ms ease;
+  transition: border-color 150ms, box-shadow 150ms;
 }
 
 .modern-input:focus {
-  border-color: #0891b2;
-  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.18);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.12);
   outline: none;
 }
 
@@ -161,43 +160,42 @@ input[type='date'] {
 
 input[type='date']::-webkit-calendar-picker-indicator {
   cursor: pointer;
-  opacity: 0.75;
+  opacity: 0.6;
 }
 
 input[type='date']::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
 }
 
+/* Primary button */
 .modern-primary {
-  border-radius: 0.75rem;
-  background: linear-gradient(130deg, var(--accent), var(--accent-strong));
+  border-radius: 0.625rem;
+  background: var(--accent);
   color: #fff;
-  box-shadow: 0 10px 24px -16px rgba(8, 145, 178, 0.8);
-  transition: transform 170ms ease, box-shadow 170ms ease, filter 170ms ease;
+  font-weight: 600;
+  transition: background-color 150ms, transform 100ms;
 }
 
 .modern-primary:hover {
-  transform: translateY(-1px);
-  filter: saturate(1.06);
-  box-shadow: 0 18px 28px -20px rgba(8, 145, 178, 0.95);
+  background: var(--accent-hover);
 }
 
 .modern-primary:active {
-  transform: translateY(0);
+  transform: scale(0.98);
 }
 
+/* Tooltip */
 .app-tooltip {
   position: fixed;
   z-index: 9999;
-  max-width: 280px;
-  padding: 0.4rem 0.6rem;
-  border-radius: 0.55rem;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  background: rgba(15, 23, 42, 0.94);
+  max-width: 260px;
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.5rem;
+  background: rgba(15, 23, 42, 0.92);
   color: #f8fafc;
   font-size: 0.72rem;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.4;
   letter-spacing: 0.01em;
   pointer-events: none;
   opacity: 0;
@@ -209,4 +207,9 @@ input[type='date']::-webkit-calendar-picker-indicator:hover {
 .app-tooltip--visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* Mobile bottom nav safe area */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
