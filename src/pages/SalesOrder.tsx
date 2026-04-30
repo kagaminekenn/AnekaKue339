@@ -262,6 +262,31 @@ const SalesOrder = () => {
   const [placeholderWordIndex, setPlaceholderWordIndex] = useState(0);
   const [placeholderCharCount, setPlaceholderCharCount] = useState(0);
   const [placeholderPhase, setPlaceholderPhase] = useState<PlaceholderPhase>('typing');
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    message: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  }>({ isOpen: false, message: '', onConfirm: () => {}, onCancel: () => {} });
+
+  const closeConfirm = () => {
+    setConfirmDialog({ isOpen: false, message: '', onConfirm: () => {}, onCancel: () => {} });
+  };
+
+  const showConfirm = (message: string, onConfirm: () => void) => {
+    setConfirmDialog({ isOpen: true, message, onConfirm, onCancel: () => {} });
+  };
+
+  const confirmAsync = (message: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      setConfirmDialog({
+        isOpen: true,
+        message,
+        onConfirm: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
+  };
 
   const resetAddForm = () => {
     setModalMode('add');
@@ -288,6 +313,14 @@ const SalesOrder = () => {
 
   const handleCloseAddModal = () => {
     if (isAddSubmitting) {
+      return;
+    }
+
+    if (addFormItems.length > 0) {
+      showConfirm('You have unsaved data. Are you sure you want to close?', () => {
+        setIsAddModalOpen(false);
+        resetAddForm();
+      });
       return;
     }
 
@@ -547,8 +580,8 @@ const SalesOrder = () => {
       return;
     }
 
-    const isConfirmed = window.confirm(
-      `Delete order for ${record.name || 'this customer'}?\n\nThis action cannot be undone.`,
+    const isConfirmed = await confirmAsync(
+      `Delete order for "${record.name || 'this customer'}"? This action cannot be undone.`,
     );
 
     if (!isConfirmed) {
@@ -1310,6 +1343,14 @@ const SalesOrder = () => {
       return;
     }
 
+    const confirmMessage = modalMode === 'edit'
+      ? 'Are you sure you want to save changes to this order?'
+      : 'Are you sure you want to submit this order?';
+    const confirmed = await confirmAsync(confirmMessage);
+    if (!confirmed) {
+      return;
+    }
+
     setIsAddSubmitting(true);
 
     try {
@@ -1562,313 +1603,230 @@ const SalesOrder = () => {
   };
 
   return (
-    <div className="page-enter space-y-6">
+    <div className="page-enter space-y-5">
       <div className="page-header">
-        <nav className="text-sm text-slate-500" aria-label="Breadcrumb">
-          <ol className="list-none p-0 inline-flex flex-wrap items-center gap-2">
+        <nav className="text-xs text-slate-400" aria-label="Breadcrumb">
+          <ol className="inline-flex list-none items-center gap-1.5 p-0">
             <li>Home</li>
             <li>/</li>
-            <li className="font-semibold text-slate-900">Sales</li>
+            <li>Sales</li>
             <li>/</li>
-            <li className="font-semibold uppercase tracking-[0.08em] text-cyan-800">Order</li>
+            <li className="font-semibold text-cyan-700">Order</li>
           </ol>
         </nav>
         <h1 className="page-title">Order Sales</h1>
         <p className="page-subtitle">Monitor and manage sales data from order channels efficiently.</p>
       </div>
 
-      <div className="glass-panel overflow-hidden rounded-2xl border border-cyan-100">
-        <div className="flex flex-col gap-3 border-b border-cyan-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div className="relative w-full sm:max-w-sm">
+      <div className="glass-panel overflow-hidden rounded-xl border border-slate-200">
+        <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
+          <div className="relative min-w-0 flex-1 sm:max-w-sm">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               placeholder={`Search ${animatedPlaceholderText}`}
-              className="w-full rounded-lg border border-cyan-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 outline-none ring-cyan-200 transition focus:ring-2"
+              className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 outline-none ring-cyan-200 transition focus:ring-2"
             />
           </div>
-          <button
-            type="button"
-            onClick={handleOpenAddModal}
-            className="modern-primary flex cursor-pointer items-center justify-center gap-2 px-4 py-2 font-medium"
-          >
-            <Plus size={16} />
-            Add
-          </button>
+          <div className="flex flex-shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={handleOpenAddModal}
+              className="modern-primary flex cursor-pointer items-center gap-2 px-4 py-2 text-sm font-semibold"
+            >
+              <Plus className="h-4 w-4" />
+              Add
+            </button>
+          </div>
         </div>
 
-        <div className="space-y-6 p-4 sm:p-6">
-          <div className="overflow-hidden rounded-2xl border border-cyan-100 bg-white">
-            <div className="border-b border-cyan-100 bg-cyan-50/50 px-4 py-3 sm:px-6">
+        <div className="space-y-5 p-4 sm:p-5">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3">
               <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-cyan-800">Ongoing</h2>
             </div>
 
             {loading ? (
-              <div className="p-10 text-center text-slate-500">Loading order sales...</div>
+              <div className="flex items-center justify-center py-16 text-sm text-slate-400">Loading order sales…</div>
             ) : ongoingRecords.length === 0 ? (
-              <div className="p-10 text-center text-slate-500">
-                {hasKeyword ? 'Tidak ada data ongoing yang cocok dengan pencarian.' : 'Tidak ada ongoing order.'}
+              <div className="flex items-center justify-center py-16 text-sm text-slate-400">
+                {hasKeyword ? 'No ongoing orders match your search.' : 'No ongoing orders.'}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="modern-table w-full min-w-[1040px]">
-                  <thead className="border-b border-cyan-100">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                        <button type="button" onClick={() => handleSort('name')} className="inline-flex cursor-pointer items-center gap-1">
-                          Name
-                          <span>{getSortIndicator('name')}</span>
-                        </button>
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                        <button type="button" onClick={() => handleSort('whatsapp')} className="inline-flex cursor-pointer items-center gap-1">
-                          Whatsapp
-                          <span>{getSortIndicator('whatsapp')}</span>
-                        </button>
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                        <button type="button" onClick={() => handleSort('delivery_datetime')} className="inline-flex cursor-pointer items-center gap-1">
-                          Delivery Datetime
-                          <span>{getSortIndicator('delivery_datetime')}</span>
-                        </button>
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                        <button type="button" onClick={() => handleSort('delivery_type')} className="inline-flex cursor-pointer items-center gap-1">
-                          Delivery Type
-                          <span>{getSortIndicator('delivery_type')}</span>
-                        </button>
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                        <button type="button" onClick={() => handleSort('total_items')} className="inline-flex cursor-pointer items-center gap-1">
-                          Total Items
-                          <span>{getSortIndicator('total_items')}</span>
-                        </button>
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                        <button type="button" onClick={() => handleSort('total_price')} className="inline-flex cursor-pointer items-center gap-1">
-                          Total Price
-                          <span>{getSortIndicator('total_price')}</span>
-                        </button>
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-cyan-50 bg-white/80">
-                    {ongoingRecords.map((record) => {
-                      const deliveryDateTime = formatDeliveryDateTime(record.delivery_datetime);
-
-                      return (
-                      <tr key={record.id}>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
+              <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+                {ongoingRecords.map((record) => {
+                  const deliveryDateTime = formatDeliveryDateTime(record.delivery_datetime);
+                  const isDeleting = deletingOrderId === record.id;
+                  return (
+                    <div key={record.id} className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+                      <div className="flex items-start justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-semibold text-slate-800">{record.name || '-'}</p>
+                          <p className="mt-0.5 text-xs text-slate-400">{record.whatsapp || '-'}</p>
+                        </div>
+                        <div className="flex-shrink-0">
                           <OrderStatusBadge isPaid={record.is_paid} isDelivered={record.is_delivered} />
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.name || '-'}</td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.whatsapp || '-'}</td>
-                        <td className="px-6 py-4 text-sm text-slate-900">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 whitespace-nowrap">
-                              <CalendarDays className="h-4 w-4 text-cyan-700" />
-                              <span>{deliveryDateTime.date}</span>
-                            </div>
-                            <div className="flex items-center gap-2 whitespace-nowrap text-slate-600">
-                              <Clock3 className="h-4 w-4 text-cyan-700" />
-                              <span>{deliveryDateTime.time}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-900">{record.delivery_type || '-'}</td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.total_items ?? 0}</td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
-                          {formatCurrency(record.total_price ?? 0)}
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenDetail(record.id)}
-                              title="View detail"
-                              aria-label={`View detail ${record.name}`}
-                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-slate-200 text-slate-700 transition-colors hover:bg-slate-50"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditModal(record.id)}
-                              title="Edit"
-                              aria-label={`Edit ${record.name}`}
-                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-cyan-200 text-cyan-700 transition-colors hover:bg-cyan-50"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenReportModal(record)}
-                              title="Generate report"
-                              aria-label={`Generate report for ${record.name}`}
-                              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-violet-300 px-3 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-50"
-                            >
-                              <FileText className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                void handleDeleteOrder(record);
-                              }}
-                              disabled={deletingOrderId === record.id}
-                              title="Delete"
-                              aria-label={`Delete ${record.name}`}
-                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-rose-200 text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )})}
-                  </tbody>
-                </table>
+                        </div>
+                      </div>
+                      <div className="flex-1 space-y-1.5 px-4 py-3">
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                          <CalendarDays className="h-3.5 w-3.5 flex-shrink-0 text-cyan-600" />
+                          <span className="truncate">{deliveryDateTime.date}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                          <Clock3 className="h-3.5 w-3.5 flex-shrink-0 text-cyan-600" />
+                          <span>{deliveryDateTime.time}</span>
+                        </div>
+                        {record.delivery_type && (
+                          <p className="text-xs text-slate-500">{record.delivery_type}</p>
+                        )}
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-xs text-slate-400">{record.total_items ?? 0} item(s)</span>
+                          <span className="text-sm font-semibold text-slate-800">{formatCurrency(record.total_price ?? 0)}</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-1.5 border-t border-slate-100 px-3 py-2.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDetail(record.id)}
+                          aria-label={`View detail for ${record.name}`}
+                          className="inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-slate-200 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { void handleOpenEditModal(record.id); }}
+                          aria-label={`Edit ${record.name}`}
+                          className="inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-cyan-200 py-1.5 text-xs font-semibold text-cyan-700 transition-colors hover:bg-cyan-50"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenReportModal(record)}
+                          aria-label={`Report for ${record.name}`}
+                          className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-violet-200 px-3 py-1.5 text-violet-600 transition-colors hover:bg-violet-50"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { void handleDeleteOrder(record); }}
+                          disabled={isDeleting}
+                          aria-label={`Delete ${record.name}`}
+                          className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-rose-200 px-3 py-1.5 text-rose-600 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+            )}
+
+            {!loading && ongoingRecords.length > 0 && (
+              <Pagination
+                currentPage={ongoingCurrentPage}
+                totalItems={ongoingTotalItems}
+                pageSize={TABLE_PAGE_SIZE}
+                onPageChange={setOngoingCurrentPage}
+              />
             )}
           </div>
 
           <details
-            className="overflow-hidden rounded-2xl border border-cyan-100 bg-white"
+            className="overflow-hidden rounded-xl border border-slate-200 bg-white"
             onToggle={(event) => setIsPastOrdersOpen(event.currentTarget.open)}
           >
-            <summary className="cursor-pointer list-none border-b border-cyan-100 bg-cyan-50/50 px-4 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-cyan-800 sm:px-6">
+            <summary className="cursor-pointer list-none border-b border-slate-100 bg-slate-50/50 px-4 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-cyan-800">
               All Past Orders
             </summary>
 
             {pastOrdersLoading ? (
-              <div className="p-10 text-center text-slate-500">Loading order sales...</div>
+              <div className="flex items-center justify-center py-16 text-sm text-slate-400">Loading order sales…</div>
             ) : pastOrderRecords.length === 0 ? (
-              <div className="p-10 text-center text-slate-500">
-                {hasKeyword ? 'Tidak ada data done yang cocok dengan pencarian.' : 'Belum ada past order.'}
+              <div className="flex items-center justify-center py-16 text-sm text-slate-400">
+                {hasKeyword ? 'No past orders match your search.' : 'No past orders yet.'}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="modern-table w-full min-w-[1040px]">
-                  <thead className="border-b border-cyan-100">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                        <button type="button" onClick={() => handleSort('name')} className="inline-flex cursor-pointer items-center gap-1">
-                          Name
-                          <span>{getSortIndicator('name')}</span>
-                        </button>
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                        <button type="button" onClick={() => handleSort('whatsapp')} className="inline-flex cursor-pointer items-center gap-1">
-                          Whatsapp
-                          <span>{getSortIndicator('whatsapp')}</span>
-                        </button>
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                        <button type="button" onClick={() => handleSort('delivery_datetime')} className="inline-flex cursor-pointer items-center gap-1">
-                          Delivery Datetime
-                          <span>{getSortIndicator('delivery_datetime')}</span>
-                        </button>
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                        <button type="button" onClick={() => handleSort('delivery_type')} className="inline-flex cursor-pointer items-center gap-1">
-                          Delivery Type
-                          <span>{getSortIndicator('delivery_type')}</span>
-                        </button>
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                        <button type="button" onClick={() => handleSort('total_items')} className="inline-flex cursor-pointer items-center gap-1">
-                          Total Items
-                          <span>{getSortIndicator('total_items')}</span>
-                        </button>
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                        <button type="button" onClick={() => handleSort('total_price')} className="inline-flex cursor-pointer items-center gap-1">
-                          Total Price
-                          <span>{getSortIndicator('total_price')}</span>
-                        </button>
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-cyan-50 bg-white/80">
-                    {pastOrderRecords.map((record) => {
-                      const deliveryDateTime = formatDeliveryDateTime(record.delivery_datetime);
-
-                      return (
-                      <tr key={record.id}>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
+              <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+                {pastOrderRecords.map((record) => {
+                  const deliveryDateTime = formatDeliveryDateTime(record.delivery_datetime);
+                  const isDeleting = deletingOrderId === record.id;
+                  return (
+                    <div key={record.id} className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+                      <div className="flex items-start justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-semibold text-slate-800">{record.name || '-'}</p>
+                          <p className="mt-0.5 text-xs text-slate-400">{record.whatsapp || '-'}</p>
+                        </div>
+                        <div className="flex-shrink-0">
                           <OrderStatusBadge isPaid={record.is_paid} isDelivered={record.is_delivered} />
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.name || '-'}</td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.whatsapp || '-'}</td>
-                        <td className="px-6 py-4 text-sm text-slate-900">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 whitespace-nowrap">
-                              <CalendarDays className="h-4 w-4 text-cyan-700" />
-                              <span>{deliveryDateTime.date}</span>
-                            </div>
-                            <div className="flex items-center gap-2 whitespace-nowrap text-slate-600">
-                              <Clock3 className="h-4 w-4 text-cyan-700" />
-                              <span>{deliveryDateTime.time}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-900">{record.delivery_type || '-'}</td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.total_items ?? 0}</td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
-                          {formatCurrency(record.total_price ?? 0)}
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenDetail(record.id)}
-                              title="View detail"
-                              aria-label={`View detail ${record.name}`}
-                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-slate-200 text-slate-700 transition-colors hover:bg-slate-50"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditModal(record.id)}
-                              title="Edit"
-                              aria-label={`Edit ${record.name}`}
-                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-cyan-200 text-cyan-700 transition-colors hover:bg-cyan-50"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenReportModal(record)}
-                              title="Generate report"
-                              aria-label={`Generate report for ${record.name}`}
-                              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-violet-300 px-3 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-50"
-                            >
-                              <FileText className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                void handleDeleteOrder(record);
-                              }}
-                              disabled={deletingOrderId === record.id}
-                              title="Delete"
-                              aria-label={`Delete ${record.name}`}
-                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-rose-200 text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )})}
-                  </tbody>
-                </table>
+                        </div>
+                      </div>
+                      <div className="flex-1 space-y-1.5 px-4 py-3">
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                          <CalendarDays className="h-3.5 w-3.5 flex-shrink-0 text-cyan-600" />
+                          <span className="truncate">{deliveryDateTime.date}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                          <Clock3 className="h-3.5 w-3.5 flex-shrink-0 text-cyan-600" />
+                          <span>{deliveryDateTime.time}</span>
+                        </div>
+                        {record.delivery_type && (
+                          <p className="text-xs text-slate-500">{record.delivery_type}</p>
+                        )}
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-xs text-slate-400">{record.total_items ?? 0} item(s)</span>
+                          <span className="text-sm font-semibold text-slate-800">{formatCurrency(record.total_price ?? 0)}</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-1.5 border-t border-slate-100 px-3 py-2.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDetail(record.id)}
+                          aria-label={`View detail for ${record.name}`}
+                          className="inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-slate-200 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { void handleOpenEditModal(record.id); }}
+                          aria-label={`Edit ${record.name}`}
+                          className="inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-cyan-200 py-1.5 text-xs font-semibold text-cyan-700 transition-colors hover:bg-cyan-50"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenReportModal(record)}
+                          aria-label={`Report for ${record.name}`}
+                          className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-violet-200 px-3 py-1.5 text-violet-600 transition-colors hover:bg-violet-50"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { void handleDeleteOrder(record); }}
+                          disabled={isDeleting}
+                          aria-label={`Delete ${record.name}`}
+                          className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-rose-200 px-3 py-1.5 text-rose-600 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -1883,29 +1841,21 @@ const SalesOrder = () => {
           </details>
 
           {!loading && !pastOrdersLoading && totalMatchingItems === 0 && (
-            <div className="rounded-2xl border border-cyan-100 bg-white p-10 text-center text-slate-500">
-              {hasKeyword ? 'Tidak ada data yang cocok dengan pencarian.' : 'Belum ada data order sales.'}
+            <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-400">
+              {hasKeyword ? 'No orders match your search.' : 'No order sales data yet.'}
             </div>
-          )}
-
-          {!loading && ongoingRecords.length > 0 && (
-            <Pagination
-              currentPage={ongoingCurrentPage}
-              totalItems={ongoingTotalItems}
-              pageSize={TABLE_PAGE_SIZE}
-              onPageChange={setOngoingCurrentPage}
-            />
           )}
         </div>
       </div>
 
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
-          <div className="max-h-[92vh] w-[min(96vw,1180px)] max-w-none overflow-y-auto rounded-2xl border border-cyan-100 bg-white p-5 shadow-2xl sm:p-6">
-            <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-4" style={{ background: 'rgba(0,0,0,0.2)' }}>
+          <div className="flex max-h-[94vh] w-full max-w-[1180px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            {/* Header */}
+            <div className="flex flex-shrink-0 items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">{modalMode === 'edit' ? 'Edit Order Sales' : 'Add Order Sales'}</h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <h2 className="text-lg font-bold text-slate-900">{modalMode === 'edit' ? 'Edit Order Sales' : 'Add Order Sales'}</h2>
+                <p className="mt-0.5 text-sm text-slate-400">
                   {modalMode === 'edit'
                     ? 'Update order sales data with customer, delivery, pricing, and item details.'
                     : 'Create order sales data with customer, delivery, pricing, and item details.'}
@@ -1915,24 +1865,23 @@ const SalesOrder = () => {
                 <button
                   type="button"
                   onClick={() => setIsAddSensorOn((prev) => !prev)}
-                  title={isAddSensorOn ? 'Tampilkan nilai finansial' : 'Sembunyikan nilai finansial'}
-                  aria-label={isAddSensorOn ? 'Tampilkan nilai finansial' : 'Sembunyikan nilai finansial'}
-                  className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                  title={isAddSensorOn ? 'Show financials' : 'Hide financials'}
+                  aria-label={isAddSensorOn ? 'Show financials' : 'Hide financials'}
+                  className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
                     isAddSensorOn
-                      ? 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-                      : 'border-cyan-300 bg-cyan-50 text-cyan-800 hover:bg-cyan-100'
+                      ? 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                      : 'border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100'
                   }`}
                 >
-                  {isAddSensorOn ? <EyeOff size={16} /> : <Eye size={16} />}
-                  {isAddSensorOn ? 'Sensor: On' : 'Sensor: Off'}
+                  {isAddSensorOn ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  {isAddSensorOn ? 'Sensor On' : 'Sensor Off'}
                 </button>
                 <button
                   type="button"
                   onClick={handleCloseAddModal}
                   disabled={isAddSubmitting}
-                  className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                  aria-label="Close add modal"
-                  title="Close"
+                  className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600 disabled:opacity-50"
+                  aria-label="Close"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -1940,31 +1889,34 @@ const SalesOrder = () => {
             </div>
 
             {isEditLoading ? (
-              <div className="rounded-2xl border border-cyan-100 p-10 text-center text-slate-500">Loading order data...</div>
+              <div className="flex flex-1 items-center justify-center py-16 text-sm text-slate-400">Loading order data…</div>
             ) : (
-            <div className="space-y-6">
-              <div className="rounded-2xl border border-cyan-100 bg-cyan-50/40 p-4 sm:p-5">
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-cyan-800">Customer</h3>
-                  {modalMode !== 'edit' && (
-                    <div className="inline-flex rounded-lg border border-cyan-200 bg-white p-1">
-                      <button
-                        type="button"
-                        onClick={() => handleCustomerModeChange('existing')}
-                        className={`rounded-md cursor-pointer px-3 py-1.5 text-sm font-medium transition ${
-                          customerMode === 'existing' ? 'bg-cyan-600 text-white' : 'text-slate-600 hover:bg-cyan-50'
-                        }`}
-                      >
-                        Existing
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleCustomerModeChange('new')}
-                        className={`rounded-md cursor-pointer px-3 py-1.5 text-sm font-medium transition ${
-                          customerMode === 'new' ? 'bg-cyan-600 text-white' : 'text-slate-600 hover:bg-cyan-50'
-                        }`}
-                      >
-                        New
+              <>
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto px-5 py-4">
+                  <div className="space-y-5">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-slate-700">Customer</h3>
+                        {modalMode !== 'edit' && (
+                          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
+                            <button
+                              type="button"
+                              onClick={() => handleCustomerModeChange('existing')}
+                              className={`rounded-md cursor-pointer px-3 py-1.5 text-xs font-semibold transition ${
+                                customerMode === 'existing' ? 'bg-cyan-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                              }`}
+                            >
+                              Existing
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCustomerModeChange('new')}
+                              className={`rounded-md cursor-pointer px-3 py-1.5 text-xs font-semibold transition ${
+                                customerMode === 'new' ? 'bg-cyan-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                              }`}
+                            >
+                              New
                       </button>
                     </div>
                   )}
@@ -2025,8 +1977,8 @@ const SalesOrder = () => {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-cyan-100 bg-cyan-50/40 p-4 sm:p-5">
-                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-cyan-800">Delivery</h3>
+              <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+                <h3 className="mb-3 text-sm font-semibold text-slate-700">Delivery</h3>
 
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <div>
@@ -2103,8 +2055,8 @@ const SalesOrder = () => {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-cyan-100 bg-cyan-50/40 p-4 sm:p-5">
-                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-cyan-800">Price</h3>
+              <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+                <h3 className="mb-3 text-sm font-semibold text-slate-700">Price</h3>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">Delivery Cost</label>
@@ -2153,8 +2105,8 @@ const SalesOrder = () => {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-cyan-100 bg-cyan-50/40 p-4 sm:p-5">
-                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-cyan-800">Misc</h3>
+              <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+                <h3 className="mb-3 text-sm font-semibold text-slate-700">Misc</h3>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">Payment Status</label>
@@ -2210,32 +2162,32 @@ const SalesOrder = () => {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-cyan-100 bg-cyan-50/40 p-4 sm:p-5">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wider text-cyan-800">Items</h3>
-                    <p className="mt-1 text-xs text-slate-500">Produk hanya dapat dipilih setelah quantity terisi. Opsi produk mengikuti min order terhadap quantity.</p>
+                    <h3 className="text-sm font-semibold text-slate-700">Items</h3>
+                    <p className="mt-1 text-xs text-slate-400">Product can only be selected after quantity is filled. Product options follow min order against quantity.</p>
                   </div>
                   <button
                     type="button"
                     onClick={handleAddRow}
-                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-800 transition-colors hover:bg-cyan-100"
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 transition-colors hover:bg-cyan-100"
                   >
-                    <Plus size={16} />
+                    <Plus className="h-4 w-4" />
                     Add Row
                   </button>
                 </div>
 
-                <div className="overflow-hidden rounded-2xl border border-cyan-100 bg-white">
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                   {addFormItems.length === 0 ? (
-                    <div className="p-8 text-center text-sm text-slate-500">No items added yet. Click Add Row to start.</div>
+                    <div className="flex items-center justify-center py-10 text-sm text-slate-400">No items added yet. Click Add Row to start.</div>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="modern-table w-full min-w-[1180px]">
-                        <thead className="border-b border-cyan-100">
+                        <thead className="border-b border-slate-100 bg-slate-50/50">
                           <tr>
                             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Quantity</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Produk</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Product</th>
                             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Is Free</th>
                             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Selling Price</th>
                             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Total Price</th>
@@ -2244,7 +2196,7 @@ const SalesOrder = () => {
                             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Action</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-cyan-50 bg-white/90">
+                        <tbody className="divide-y divide-slate-100">
                           {paginatedAddFormItems.map((item) => {
                             const itemOptions = filteredAddProductOptionsByQuantity[item.id] ?? [];
                             const selectedOption = itemOptions.find((option) => option.value === item.order_pricing_id) ?? null;
@@ -2330,85 +2282,89 @@ const SalesOrder = () => {
                 </div>
               </div>
 
-              <div className="flex gap-3 border-t border-slate-200 pt-4">
-                <button
-                  type="button"
-                  onClick={handleCloseAddModal}
-                  disabled={isAddSubmitting}
-                  className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <XCircle className="h-4 w-4" />
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSubmitAddForm}
-                  disabled={isAddSubmitting || isEditLoading}
-                  className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Send className="h-4 w-4" />
-                  {isAddSubmitting ? (modalMode === 'edit' ? 'Saving...' : 'Submitting...') : (modalMode === 'edit' ? 'Save Changes' : 'Submit')}
-                </button>
-              </div>
-            </div>
+                  </div>
+                </div>
+                <div className="flex flex-shrink-0 gap-3 border-t border-slate-100 px-5 py-4">
+                  <button
+                    type="button"
+                    onClick={handleCloseAddModal}
+                    disabled={isAddSubmitting}
+                    className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSubmitAddForm}
+                    disabled={isAddSubmitting || isEditLoading}
+                    className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-700 disabled:opacity-50"
+                  >
+                    <Send className="h-4 w-4" />
+                    {isAddSubmitting ? (modalMode === 'edit' ? 'Saving…' : 'Submitting…') : (modalMode === 'edit' ? 'Save Changes' : 'Submit')}
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </div>
       )}
 
       {selectedOrderId && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
-          <div className="max-h-[92vh] w-[min(96vw,1560px)] max-w-none overflow-y-auto rounded-2xl border border-cyan-100 bg-white p-5 shadow-2xl sm:p-6">
-            <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-4" style={{ background: 'rgba(0,0,0,0.2)' }}>
+          <div className="flex max-h-[94vh] w-full max-w-[1560px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            {/* Header */}
+            <div className="flex flex-shrink-0 items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">Order Sales Detail</h2>
-                <p className="mt-1 text-sm text-slate-500">Detailed summary and order items for the selected transaction.</p>
+                <h2 className="text-lg font-bold text-slate-900">Order Sales Detail</h2>
+                <p className="mt-0.5 text-sm text-slate-400">Detailed summary and order items for the selected transaction.</p>
               </div>
               <div className="flex items-center gap-2">
-                <div className="inline-flex items-center gap-2 rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-600">Paid</span>
-                  <span className={`inline-flex rounded-full p-1.5 ${paidStatus ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                    {paidStatus ? <BanknoteArrowUp className="h-6 w-6" /> : <BanknoteX className="h-6 w-6" />}
+                <div className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
+                  <span className="text-xs font-semibold text-slate-500">Paid</span>
+                  <span className={`inline-flex rounded-full p-1 ${paidStatus ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                    {paidStatus ? <BanknoteArrowUp className="h-4 w-4" /> : <BanknoteX className="h-4 w-4" />}
                   </span>
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-600">Delivered</span>
-                  <span className={`inline-flex rounded-full p-1.5 ${deliveredStatus ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                    {deliveredStatus ? <PackageCheck className="h-6 w-6" /> : <PackageX className="h-6 w-6" />}
+                <div className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
+                  <span className="text-xs font-semibold text-slate-500">Delivered</span>
+                  <span className={`inline-flex rounded-full p-1 ${deliveredStatus ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                    {deliveredStatus ? <PackageCheck className="h-4 w-4" /> : <PackageX className="h-4 w-4" />}
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsDetailSensorOn((prev) => !prev)}
-                  title={isDetailSensorOn ? 'Tampilkan nilai finansial' : 'Sembunyikan nilai finansial'}
-                  aria-label={isDetailSensorOn ? 'Tampilkan nilai finansial' : 'Sembunyikan nilai finansial'}
-                  className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                  title={isDetailSensorOn ? 'Show financials' : 'Hide financials'}
+                  aria-label={isDetailSensorOn ? 'Show financials' : 'Hide financials'}
+                  className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
                     isDetailSensorOn
-                      ? 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-                      : 'border-cyan-300 bg-cyan-50 text-cyan-800 hover:bg-cyan-100'
+                      ? 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                      : 'border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100'
                   }`}
                 >
-                  {isDetailSensorOn ? <EyeOff size={16} /> : <Eye size={16} />}
-                  {isDetailSensorOn ? 'Sensor: On' : 'Sensor: Off'}
+                  {isDetailSensorOn ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  {isDetailSensorOn ? 'Sensor On' : 'Sensor Off'}
                 </button>
                 <button
                   type="button"
                   onClick={handleCloseDetail}
-                  className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100"
-                  aria-label="Close detail modal"
-                  title="Close"
+                  className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600"
+                  aria-label="Close"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
             </div>
 
-            <div className="space-y-8">
-              <div className="space-y-4">
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              <div className="space-y-6">
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-slate-700">Overview</h3>
                 {orderDetailLoading ? (
-                  <div className="rounded-2xl border border-cyan-100 p-10 text-center text-slate-500">Loading detail data...</div>
+                  <div className="flex items-center justify-center rounded-xl border border-slate-200 py-12 text-sm text-slate-400">Loading order data…</div>
                 ) : detailEntries.length === 0 ? (
-                  <div className="rounded-2xl border border-cyan-100 p-10 text-center text-slate-500">No detail data found.</div>
+                  <div className="flex items-center justify-center rounded-xl border border-slate-200 py-12 text-sm text-slate-400">No overview data found.</div>
                 ) : (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     {detailEntries.map(([key, value], index) => {
@@ -2452,9 +2408,9 @@ const SalesOrder = () => {
                           </p>
                         </div>
                       ) : (
-                        <div key={key} className={`rounded-xl border border-cyan-100 bg-cyan-50/60 p-4 ${remainderSpanClass}`}>
-                          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{formatFieldLabel(key)}</p>
-                          <p className="mt-1 text-sm font-medium text-slate-900">{renderDetailFieldValue(key, value)}</p>
+                        <div key={key} className={`rounded-xl border border-slate-200 bg-slate-50/50 p-4 ${remainderSpanClass}`}>
+                          <p className="text-xs font-medium text-slate-400">{formatFieldLabel(key)}</p>
+                          <p className="mt-1.5 text-sm font-semibold text-slate-800">{renderDetailFieldValue(key, value)}</p>
                         </div>
                       );
                     })}
@@ -2462,292 +2418,343 @@ const SalesOrder = () => {
                 )}
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">Items</h3>
-                  <p className="mt-1 text-sm text-slate-500">List of items for this transaction.</p>
-                </div>
-
-                <div className="overflow-hidden rounded-2xl border border-cyan-100">
-                  {detailLoading ? (
-                    <div className="p-10 text-center text-slate-500">Loading item details...</div>
-                  ) : detailRecords.length === 0 ? (
-                    <div className="p-10 text-center text-slate-500">No item details found.</div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="modern-table w-full min-w-[980px]">
-                        <thead className="border-b border-cyan-100">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Products</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Qty</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Price</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Notes</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Total Price</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Total Cost</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Net Income</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-cyan-50 bg-white/80">
-                          {detailRecords.map((item) => (
-                            <tr key={item.id}>
-                              <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{item.item_name || '-'}</td>
-                              <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{item.quantity ?? 0}</td>
-                              <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{formatCurrency(item.selling_price ?? 0)}</td>
-                              <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
-                                {item.is_free ? <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-800">Free</span> : '-'}
-                              </td>
-                              <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{formatCurrency(item.total_price ?? 0)}</td>
-                              <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
-                                <span className={detailSensorClass}>{formatCurrency(item.total_cost ?? 0)}</span>
-                              </td>
-                              <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{renderNetIncomeIndicator(item.net_income ?? 0)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-slate-700">Items</h3>
                   {!detailLoading && detailRecords.length > 0 && (
-                    <Pagination
-                      currentPage={detailCurrentPage}
-                      totalItems={detailTotalItems}
-                      pageSize={TABLE_PAGE_SIZE}
-                      onPageChange={setDetailCurrentPage}
-                    />
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-500">{detailTotalItems}</span>
                   )}
                 </div>
+
+                {detailLoading ? (
+                  <div className="flex items-center justify-center rounded-xl border border-slate-200 py-12 text-sm text-slate-400">Loading items…</div>
+                ) : detailRecords.length === 0 ? (
+                  <div className="flex items-center justify-center rounded-xl border border-slate-200 py-12 text-sm text-slate-400">No items found.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {detailRecords.map((item) => (
+                      <div key={item.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-slate-800">{item.item_name || '-'}</p>
+                            {item.is_free && (
+                              <span className="mt-1.5 inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">Free</span>
+                            )}
+                          </div>
+                          <span className="flex-shrink-0 rounded-lg border border-slate-200 px-2.5 py-1 text-sm font-semibold text-slate-600">×{item.quantity}</span>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          <div className="rounded-lg bg-slate-50 px-3 py-2">
+                            <p className="text-xs text-slate-400">Unit Price</p>
+                            <p className="mt-0.5 text-sm font-semibold text-slate-700">{formatCurrency(item.selling_price ?? 0)}</p>
+                          </div>
+                          <div className="rounded-lg bg-slate-50 px-3 py-2">
+                            <p className="text-xs text-slate-400">Total Price</p>
+                            <p className="mt-0.5 text-sm font-semibold text-slate-700">{formatCurrency(item.total_price ?? 0)}</p>
+                          </div>
+                          <div className="rounded-lg bg-slate-50 px-3 py-2">
+                            <p className="text-xs text-slate-400">Total Cost</p>
+                            <p className={`mt-0.5 text-sm font-semibold text-slate-700 ${detailSensorClass}`}>{formatCurrency(item.total_cost ?? 0)}</p>
+                          </div>
+                          <div className="rounded-lg bg-slate-50 px-3 py-2">
+                            <p className="text-xs text-slate-400">Net Income</p>
+                            <div className="mt-0.5">{renderNetIncomeIndicator(item.net_income ?? 0)}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {!detailLoading && detailRecords.length > 0 && (
+                  <Pagination
+                    currentPage={detailCurrentPage}
+                    totalItems={detailTotalItems}
+                    pageSize={TABLE_PAGE_SIZE}
+                    onPageChange={setDetailCurrentPage}
+                  />
+                )}
               </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex flex-shrink-0 justify-end border-t border-slate-100 px-5 py-4">
+              <button
+                type="button"
+                onClick={handleCloseDetail}
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
       )}
-
       {reportRecord && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
-          <div className="max-h-[92vh] w-[min(96vw,960px)] max-w-none overflow-y-auto rounded-2xl border border-cyan-100 bg-white/95 p-5 shadow-2xl sm:p-6">
-            <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-4" style={{ background: 'rgba(0,0,0,0.2)' }}>
+          <div className="flex max-h-[94vh] w-full max-w-[960px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 shadow-2xl">
+            {/* Header */}
+            <div className="flex flex-shrink-0 items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">Generate Report</h2>
-                <p className="mt-1 text-sm text-slate-500">Preview order receipt and cost report.</p>
+                <h2 className="text-lg font-bold text-slate-900">Generate Report</h2>
+                <p className="mt-0.5 text-sm text-slate-400">Preview order receipt and cost report.</p>
               </div>
               <button
                 type="button"
                 onClick={handleCloseReportModal}
-                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100"
-                aria-label="Close report modal"
-                title="Close"
+                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600"
+                aria-label="Close"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            {isReportDetailLoading || isReportDetailFetching ? (
-              <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">Loading report data...</div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex gap-2 border-b border-cyan-100">
-                  <button
-                    type="button"
-                    onClick={() => setReportTabIndex('receipt')}
-                    className={`px-4 py-3 font-medium transition-colors ${
-                      reportTabIndex === 'receipt'
-                        ? 'border-b-2 border-cyan-500 text-cyan-700'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Order Receipt
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setReportTabIndex('cost')}
-                    className={`px-4 py-3 font-medium transition-colors ${
-                      reportTabIndex === 'cost'
-                        ? 'border-b-2 border-cyan-500 text-cyan-700'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Order Cost
-                  </button>
-                </div>
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {isReportDetailLoading || isReportDetailFetching ? (
+                <div className="flex items-center justify-center py-16 text-sm text-slate-400">Loading report data…</div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex gap-2 border-b border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setReportTabIndex('receipt')}
+                      className={`px-4 py-3 text-sm font-medium transition-colors ${
+                        reportTabIndex === 'receipt'
+                          ? 'border-b-2 border-cyan-500 text-cyan-700'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Order Receipt
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReportTabIndex('cost')}
+                      className={`px-4 py-3 text-sm font-medium transition-colors ${
+                        reportTabIndex === 'cost'
+                          ? 'border-b-2 border-cyan-500 text-cyan-700'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Order Cost
+                    </button>
+                  </div>
 
-                {reportTabIndex === 'receipt' && (
-                  <div className="space-y-4">
-                    <div id="order-receipt-content" className="rounded-xl border border-slate-300 bg-white p-6 text-slate-900">
-                      <div className="border-b border-dashed border-slate-300 pb-4">
-                        <h3 className="text-center text-lg font-bold">Struk Pesanan</h3>
-                        <p className="mt-2 text-center text-sm text-slate-600">Aneka Kue 339</p>
-                      </div>
+                  {reportTabIndex === 'receipt' && (
+                    <div className="space-y-4">
+                      <div id="order-receipt-content" className="rounded-xl border border-slate-300 bg-white p-6 text-slate-900">
+                        <div className="border-b border-dashed border-slate-300 pb-4">
+                          <h3 className="text-center text-lg font-bold">Struk Pesanan</h3>
+                          <p className="mt-2 text-center text-sm text-slate-600">Aneka Kue 339</p>
+                        </div>
 
-                      <div className="mt-6 space-y-4">
-                        <div className="grid grid-cols-3 gap-4">
-                          <div className="rounded-lg border border-cyan-100 bg-cyan-50/60 p-3">
-                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Nama</p>
-                            <p className="mt-1 text-sm font-medium">{reportRecord.name || '-'}</p>
-                          </div>
-                          <div className="rounded-lg border border-cyan-100 bg-cyan-50/60 p-3">
-                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">WhatsApp</p>
-                            <p className="mt-1 text-sm font-medium">{reportRecord.whatsapp || '-'}</p>
-                          </div>
-                          <div className="rounded-lg border border-cyan-100 bg-cyan-50/60 p-3">
-                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Jenis Pengiriman</p>
-                            <p className="mt-1 text-sm font-medium">{reportRecord.delivery_type || '-'}</p>
-                          </div>
-                          <div className="col-span-3">
-                            <div className="grid grid-cols-3 gap-4">
-                              <div className="col-span-2 rounded-lg border border-cyan-100 bg-cyan-50/60 p-3">
-                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Alamat Pengiriman</p>
-                                <p className="mt-1 text-sm font-medium">{reportRecord.delivery_address || '-'}</p>
-                              </div>
-                              <div className="rounded-lg border border-cyan-100 bg-cyan-50/60 p-3 text-sm font-medium text-slate-700">
-                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Tanggal Pengiriman</p>
-                                <div className="mt-1 flex items-center gap-2 leading-normal">
-                                  <CalendarDays className="h-4 w-4 text-cyan-700" />
-                                  <span className="whitespace-nowrap">{reportDateTimeParts.date}</span>
-                                </div>
-                                <div className="mt-1 flex items-center gap-2 leading-normal">
-                                  <Clock3 className="h-4 w-4 text-cyan-700" />
-                                  <span className="whitespace-nowrap">{reportDateTimeParts.time}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="col-span-3">
+                        <div className="mt-6 space-y-4">
+                          <div className="grid grid-cols-3 gap-4">
                             <div className="rounded-lg border border-cyan-100 bg-cyan-50/60 p-3">
-                              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Catatan</p>
-                              <p className="mt-1 text-sm font-medium">{reportRecord.remark || '-'}</p>
+                              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Nama</p>
+                              <p className="mt-1 text-sm font-medium">{reportRecord.name || '-'}</p>
+                            </div>
+                            <div className="rounded-lg border border-cyan-100 bg-cyan-50/60 p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">WhatsApp</p>
+                              <p className="mt-1 text-sm font-medium">{reportRecord.whatsapp || '-'}</p>
+                            </div>
+                            <div className="rounded-lg border border-cyan-100 bg-cyan-50/60 p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Jenis Pengiriman</p>
+                              <p className="mt-1 text-sm font-medium">{reportRecord.delivery_type || '-'}</p>
+                            </div>
+                            <div className="col-span-3">
+                              <div className="grid grid-cols-3 gap-4">
+                                <div className="col-span-2 rounded-lg border border-cyan-100 bg-cyan-50/60 p-3">
+                                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Alamat Pengiriman</p>
+                                  <p className="mt-1 text-sm font-medium">{reportRecord.delivery_address || '-'}</p>
+                                </div>
+                                <div className="rounded-lg border border-cyan-100 bg-cyan-50/60 p-3 text-sm font-medium text-slate-700">
+                                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Tanggal Pengiriman</p>
+                                  <div className="mt-1 flex items-center gap-2 leading-normal">
+                                    <CalendarDays className="h-4 w-4 text-cyan-700" />
+                                    <span className="whitespace-nowrap">{reportDateTimeParts.date}</span>
+                                  </div>
+                                  <div className="mt-1 flex items-center gap-2 leading-normal">
+                                    <Clock3 className="h-4 w-4 text-cyan-700" />
+                                    <span className="whitespace-nowrap">{reportDateTimeParts.time}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="col-span-3">
+                              <div className="rounded-lg border border-cyan-100 bg-cyan-50/60 p-3">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Catatan</p>
+                                <p className="mt-1 text-sm font-medium">{reportRecord.remark || '-'}</p>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="mt-6">
-                        <h4 className="text-sm font-semibold text-slate-900">Item</h4>
-                        <div className="mt-3 overflow-x-auto">
-                          <table className="w-full border-collapse text-sm">
-                            <thead>
-                              <tr className="border-b border-slate-300">
-                                <th className="px-2 py-2 text-left font-semibold">Item</th>
-                                <th className="px-2 py-2 text-center font-semibold">Qty</th>
-                                <th className="px-2 py-2 text-right font-semibold">Harga</th>
-                                <th className="px-2 py-2 text-right font-semibold">Total</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(reportDetailRecords ?? []).map((item) => (
-                                <tr key={item.id} className="border-b border-slate-100">
-                                  <td className="px-2 py-2">{item.item_name}</td>
-                                  <td className="px-2 py-2 text-center">{item.quantity}</td>
-                                  <td className="px-2 py-2 text-right">{item.is_free ? 'Gratis' : formatCurrency(item.selling_price)}</td>
-                                  <td className="px-2 py-2 text-right">{item.is_free ? 'Gratis' : formatCurrency(item.total_price)}</td>
+                        <div className="mt-6">
+                          <h4 className="text-sm font-semibold text-slate-900">Item</h4>
+                          <div className="mt-3 overflow-x-auto">
+                            <table className="w-full border-collapse text-sm">
+                              <thead>
+                                <tr className="border-b border-slate-300">
+                                  <th className="px-2 py-2 text-left font-semibold">Item</th>
+                                  <th className="px-2 py-2 text-center font-semibold">Qty</th>
+                                  <th className="px-2 py-2 text-right font-semibold">Harga</th>
+                                  <th className="px-2 py-2 text-right font-semibold">Total</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                              </thead>
+                              <tbody>
+                                {(reportDetailRecords ?? []).map((item) => (
+                                  <tr key={item.id} className="border-b border-slate-100">
+                                    <td className="px-2 py-2">{item.item_name}</td>
+                                    <td className="px-2 py-2 text-center">{item.quantity}</td>
+                                    <td className="px-2 py-2 text-right">{item.is_free ? 'Gratis' : formatCurrency(item.selling_price)}</td>
+                                    <td className="px-2 py-2 text-right">{item.is_free ? 'Gratis' : formatCurrency(item.total_price)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="mt-6 border-t border-dashed border-slate-300 pt-4">
-                        <div className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 text-base">
-                          <p className="m-0 whitespace-nowrap">Total Item:</p>
-                          <p className="m-0 whitespace-nowrap text-right font-medium">{reportRecord.total_items ?? 0}</p>
+                        <div className="mt-6 border-t border-dashed border-slate-300 pt-4">
+                          <div className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 text-base">
+                            <p className="m-0 whitespace-nowrap">Total Item:</p>
+                            <p className="m-0 whitespace-nowrap text-right font-medium">{reportRecord.total_items ?? 0}</p>
 
-                          <p className="m-0 whitespace-nowrap">Total Harga:</p>
-                          <p className="m-0 whitespace-nowrap text-right font-medium">{formatCurrency(reportRecord.total_price ?? 0)}</p>
+                            <p className="m-0 whitespace-nowrap">Total Harga:</p>
+                            <p className="m-0 whitespace-nowrap text-right font-medium">{formatCurrency(reportRecord.total_price ?? 0)}</p>
 
-                          {reportDeliveryCost !== null && (
-                            <>
-                              <p className="m-0 whitespace-nowrap">Biaya Kirim:</p>
-                              <p className="m-0 whitespace-nowrap text-right font-medium">{formatCurrency(reportDeliveryCost)}</p>
-                            </>
-                          )}
-                        </div>
-                        <div className="mt-3 grid grid-cols-[1fr_auto] items-center gap-x-4 border-t border-slate-200 pt-3 text-lg font-bold">
-                          <p className="m-0 whitespace-nowrap">Harga Akhir:</p>
-                          <p className="m-0 whitespace-nowrap text-right">{formatCurrency(reportFinalPrice)}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void handleDownloadReceipt();
-                      }}
-                      className="w-full cursor-pointer inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700"
-                    >
-                      <Download className="h-4 w-4" />
-                      Download JPG
-                    </button>
-                  </div>
-                )}
-
-                {reportTabIndex === 'cost' && (
-                  <div className="space-y-4">
-                    <div id="order-cost-content" className="rounded-xl border border-slate-300 bg-white p-6 text-slate-900">
-                      <div className="border-b border-dashed border-slate-300 pb-4">
-                        <h3 className="text-center text-lg font-bold">Laporan Biaya</h3>
-                        <p className="mt-2 text-center text-sm text-slate-600">Aneka Kue 339</p>
-                        <div className="mt-2 flex flex-col items-center gap-1 text-sm font-medium text-slate-700">
-                          <div className="flex items-center gap-2">
-                            <CalendarDays className="h-4 w-4 text-cyan-700" />
-                            <span>{reportDateTimeParts.date}</span>
+                            {reportDeliveryCost !== null && (
+                              <>
+                                <p className="m-0 whitespace-nowrap">Biaya Kirim:</p>
+                                <p className="m-0 whitespace-nowrap text-right font-medium">{formatCurrency(reportDeliveryCost)}</p>
+                              </>
+                            )}
+                          </div>
+                          <div className="mt-3 grid grid-cols-[1fr_auto] items-center gap-x-4 border-t border-slate-200 pt-3 text-lg font-bold">
+                            <p className="m-0 whitespace-nowrap">Harga Akhir:</p>
+                            <p className="m-0 whitespace-nowrap text-right">{formatCurrency(reportFinalPrice)}</p>
                           </div>
                         </div>
                       </div>
 
-                      <div className="mt-6">
-                        <h4 className="text-sm font-semibold text-slate-900 mb-3">Biaya Item</h4>
-                        <div className="overflow-x-auto">
-                          <table className="w-full border-collapse text-sm">
-                            <thead>
-                              <tr className="border-b border-slate-300">
-                                <th className="px-2 py-2 text-left font-semibold">Item</th>
-                                <th className="px-2 py-2 text-center font-semibold">Qty</th>
-                                <th className="px-2 py-2 text-right font-semibold">Harga Pokok</th>
-                                <th className="px-2 py-2 text-right font-semibold">Total Biaya</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(reportDetailRecords ?? []).map((item) => (
-                                <tr key={item.id} className="border-b border-slate-100">
-                                  <td className="px-2 py-2">{item.item_name}</td>
-                                  <td className="px-2 py-2 text-center">{item.quantity}</td>
-                                  <td className="px-2 py-2 text-right">{formatCurrency(item.base_price)}</td>
-                                  <td className="px-2 py-2 text-right">{formatCurrency(item.total_cost)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      <div className="mt-6 border-t border-dashed border-slate-300 pt-4">
-                        <div className="flex items-center justify-between text-lg font-bold">
-                          <span>Total Biaya:</span>
-                          <span>
-                            {formatCurrency(
-                              (reportDetailRecords ?? []).reduce((sum, item) => sum + item.total_cost, 0)
-                            )}
-                          </span>
-                        </div>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { void handleDownloadReceipt(); }}
+                        className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-700"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download JPG
+                      </button>
                     </div>
+                  )}
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void handleDownloadCostReport();
-                      }}
-                      className="w-full cursor-pointer inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700"
-                    >
-                      <Download className="h-4 w-4" />
-                      Download JPG
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+                  {reportTabIndex === 'cost' && (
+                    <div className="space-y-4">
+                      <div id="order-cost-content" className="rounded-xl border border-slate-300 bg-white p-6 text-slate-900">
+                        <div className="border-b border-dashed border-slate-300 pb-4">
+                          <h3 className="text-center text-lg font-bold">Laporan Biaya</h3>
+                          <p className="mt-2 text-center text-sm text-slate-600">Aneka Kue 339</p>
+                          <div className="mt-2 flex flex-col items-center gap-1 text-sm font-medium text-slate-700">
+                            <div className="flex items-center gap-2">
+                              <CalendarDays className="h-4 w-4 text-cyan-700" />
+                              <span>{reportDateTimeParts.date}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-6">
+                          <h4 className="mb-3 text-sm font-semibold text-slate-900">Biaya Item</h4>
+                          <div className="overflow-x-auto">
+                            <table className="w-full border-collapse text-sm">
+                              <thead>
+                                <tr className="border-b border-slate-300">
+                                  <th className="px-2 py-2 text-left font-semibold">Item</th>
+                                  <th className="px-2 py-2 text-center font-semibold">Qty</th>
+                                  <th className="px-2 py-2 text-right font-semibold">Harga Pokok</th>
+                                  <th className="px-2 py-2 text-right font-semibold">Total Biaya</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(reportDetailRecords ?? []).map((item) => (
+                                  <tr key={item.id} className="border-b border-slate-100">
+                                    <td className="px-2 py-2">{item.item_name}</td>
+                                    <td className="px-2 py-2 text-center">{item.quantity}</td>
+                                    <td className="px-2 py-2 text-right">{formatCurrency(item.base_price)}</td>
+                                    <td className="px-2 py-2 text-right">{formatCurrency(item.total_cost)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        <div className="mt-6 border-t border-dashed border-slate-300 pt-4">
+                          <div className="flex items-center justify-between text-lg font-bold">
+                            <span>Total Biaya:</span>
+                            <span>
+                              {formatCurrency(
+                                (reportDetailRecords ?? []).reduce((sum, item) => sum + item.total_cost, 0)
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => { void handleDownloadCostReport(); }}
+                        className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-700"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download JPG
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex flex-shrink-0 justify-end border-t border-slate-100 px-5 py-4">
+              <button
+                type="button"
+                onClick={handleCloseReportModal}
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => { confirmDialog.onCancel(); closeConfirm(); }}
+          />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="mb-2 text-base font-semibold text-slate-800">Confirm</h3>
+            <p className="mb-6 text-sm text-slate-600">{confirmDialog.message}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => { confirmDialog.onCancel(); closeConfirm(); }}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => { confirmDialog.onConfirm(); closeConfirm(); }}
+                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+              >
+                Confirm
+              </button>
+            </div>
           </div>
         </div>
       )}
