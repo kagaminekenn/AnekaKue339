@@ -11,46 +11,108 @@ import {
   User,
   LogOut,
   ChevronDown,
-  ChevronUp,
-  X,
   Building2,
   ShoppingCart,
   ShoppingBasket,
 } from 'lucide-react'
 
 interface MenuItem {
-  name: string;
-  key: string;
+  name: string
+  key: string
   icon: LucideIcon
 }
 
 interface SidebarProps {
   activePage: string
   onSelectPage: (page: string) => void
-  isOpen: boolean
-  onClose: () => void
   userDisplayName?: string | null
   onLogout?: () => void
 }
 
-const Sidebar = ({ activePage, onSelectPage, isOpen, onClose, userDisplayName, onLogout }: SidebarProps) => {
-  const [parameterOpen, setParameterOpen] = useState(activePage === 'Items' || activePage === 'LoyalCustomer')
-  const [pricingOpen, setPricingOpen] = useState(activePage === 'PricingOffice' || activePage === 'PricingOrder')
-  const [salesOpen, setSalesOpen] = useState(activePage === 'SalesOffice' || activePage === 'SalesOrder')
+const NavItem = ({
+  item,
+  isActive,
+  onClick,
+}: {
+  item: MenuItem
+  isActive: boolean
+  onClick: () => void
+}) => {
+  const Icon = item.icon
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-left transition-colors ${
+        isActive
+          ? 'bg-cyan-50 font-semibold text-cyan-700'
+          : 'font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+      }`}
+    >
+      <Icon className="h-4 w-4 flex-shrink-0" />
+      {item.name}
+    </button>
+  )
+}
 
+const NavGroup = ({
+  label,
+  icon: Icon,
+  items,
+  activePage,
+  onSelectPage,
+}: {
+  label: string
+  icon: LucideIcon
+  items: MenuItem[]
+  activePage: string
+  onSelectPage: (key: string) => void
+}) => {
+  const anyActive = items.some((item) => item.key === activePage)
+  const [isOpen, setIsOpen] = useState(anyActive)
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => setIsOpen((v) => !v)}
+        className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-left transition-colors ${
+          anyActive && !isOpen
+            ? 'bg-cyan-50 text-cyan-700'
+            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+        }`}
+      >
+        <Icon className="h-4 w-4 flex-shrink-0" />
+        <span className="flex-1">{label}</span>
+        <ChevronDown
+          className={`h-3.5 w-3.5 flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+        />
+      </button>
+      <div
+        className={`overflow-hidden transition-all duration-200 ${
+          isOpen ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
+        <ul className="ml-[26px] mt-0.5 space-y-0.5 border-l border-slate-200 pl-3">
+          {items.map((item) => (
+            <li key={item.key}>
+              <NavItem
+                item={item}
+                isActive={activePage === item.key}
+                onClick={() => onSelectPage(item.key)}
+              />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </li>
+  )
+}
+
+const Sidebar = ({ activePage, onSelectPage, userDisplayName, onLogout }: SidebarProps) => {
   const menuItems: MenuItem[] = [
     { name: 'Home', key: 'Home', icon: Home },
     { name: 'Dashboard', key: 'Dashboard', icon: LayoutDashboard },
-  ]
-
-  const parameterItems: MenuItem[] = [
-    { name: 'Items', key: 'Items', icon: List },
-    { name: 'Loyal Customer', key: 'LoyalCustomer', icon: Users },
-  ]
-
-  const pricingItems: MenuItem[] = [
-    { name: 'Office', key: 'PricingOffice', icon: Building2 },
-    { name: 'Order', key: 'PricingOrder', icon: ShoppingBasket },
   ]
 
   const salesItems: MenuItem[] = [
@@ -58,207 +120,100 @@ const Sidebar = ({ activePage, onSelectPage, isOpen, onClose, userDisplayName, o
     { name: 'Order', key: 'SalesOrder', icon: ShoppingBasket },
   ]
 
+  const pricingItems: MenuItem[] = [
+    { name: 'Office', key: 'PricingOffice', icon: Building2 },
+    { name: 'Order', key: 'PricingOrder', icon: ShoppingBasket },
+  ]
+
+  const parameterItems: MenuItem[] = [
+    { name: 'Items', key: 'Items', icon: List },
+    { name: 'Loyal Customer', key: 'LoyalCustomer', icon: Users },
+  ]
 
   return (
-    <>
-      {isOpen && (
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close navigation overlay"
-          className="fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-sm lg:hidden"
+    <aside className="hidden lg:flex sticky top-0 h-screen w-56 flex-shrink-0 flex-col border-r border-slate-200 bg-white">
+      {/* Brand header */}
+      <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-4">
+        <img
+          src={logo}
+          alt="Aneka Kue 339 logo"
+          className="h-9 w-9 flex-shrink-0 rounded-xl object-cover"
         />
-      )}
-      <aside className={`fixed inset-y-0 left-0 z-50 h-screen w-[18rem] overflow-y-auto border-r border-cyan-100 bg-gradient-to-b from-slate-900 via-slate-900 to-cyan-950 text-slate-100 transition-transform duration-300 lg:sticky lg:top-0 lg:z-10 lg:w-64 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-      <div className="flex h-full flex-col justify-between">
-        <div>
-          <div className="flex items-center justify-between gap-3 border-b border-cyan-900/65 px-4 py-4">
-            <div className="flex items-center gap-3">
-              <img
-                src={logo}
-                alt="Aneka Kue 339 logo"
-                className="h-10 w-10 rounded-full border border-cyan-700/60 object-cover"
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold leading-tight text-slate-900">Aneka Kue 339</p>
+          <p className="mt-0.5 text-[10px] font-medium uppercase tracking-widest text-slate-400">
+            Admin Suite
+          </p>
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto px-3 py-3" aria-label="Sidebar navigation">
+        <ul className="space-y-0.5">
+          {menuItems.map((item) => (
+            <li key={item.key}>
+              <NavItem
+                item={item}
+                isActive={activePage === item.key}
+                onClick={() => onSelectPage(item.key)}
               />
-              <div>
-                <p className="font-heading text-base font-bold tracking-tight text-white">Aneka Kue 339</p>
-                <p className="text-[11px] uppercase tracking-[0.16em] text-cyan-200/80">Operational Console</p>
-              </div>
-            </div>
+            </li>
+          ))}
+
+          <li className="pb-1 pt-3">
+            <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              Modules
+            </p>
+          </li>
+
+          <NavGroup
+            label="Sales"
+            icon={ShoppingCart}
+            items={salesItems}
+            activePage={activePage}
+            onSelectPage={onSelectPage}
+          />
+          <NavGroup
+            label="Pricing"
+            icon={DollarSign}
+            items={pricingItems}
+            activePage={activePage}
+            onSelectPage={onSelectPage}
+          />
+          <NavGroup
+            label="Parameter"
+            icon={Settings2}
+            items={parameterItems}
+            activePage={activePage}
+            onSelectPage={onSelectPage}
+          />
+        </ul>
+      </nav>
+
+      {/* User footer */}
+      <div className="border-t border-slate-100 px-3 py-3">
+        <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-cyan-100 bg-cyan-50">
+            <User className="h-4 w-4 text-cyan-600" />
+          </div>
+          <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">
+            {userDisplayName ?? 'Admin 339'}
+          </p>
+          {onLogout && (
             <button
               type="button"
-              onClick={onClose}
-              aria-label="Close navigation"
-              className="rounded-xl p-2 text-cyan-100 transition hover:bg-cyan-900/70 lg:hidden"
+              onClick={onLogout}
+              aria-label="Logout"
+              title="Logout"
+              className="flex-shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-500"
             >
-              <X className="h-5 w-5" />
+              <LogOut className="h-4 w-4" />
             </button>
-          </div>
-
-          <nav className="px-2 pt-4">
-            <ul className="space-y-2">
-              {menuItems.map((item, index) => {
-                const Icon = item.icon
-                const isActive = activePage === item.key
-                return (
-                  <li key={index}>
-                    <button
-                      type="button"
-                      onClick={() => onSelectPage(item.key)}
-                      className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
-                        isActive ? 'bg-cyan-500/20 text-cyan-100 ring-1 ring-cyan-300/40' : 'text-slate-100 hover:bg-cyan-900/60'
-                      }`}
-                    >
-                      <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-400/20 text-cyan-200">
-                        <Icon className="h-5 w-5" />
-                      </span>
-                      {item.name}
-                    </button>
-                  </li>
-                )
-              })}
-              <li>
-                <button
-                  type="button"
-                  onClick={() => setSalesOpen((value) => !value)}
-                  className="group flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-medium text-slate-100 transition hover:bg-cyan-900/60"
-                >
-                  <span className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-400/20 text-cyan-200">
-                      <ShoppingCart className="h-5 w-5" />
-                    </span>
-                    Sales
-                  </span>
-                  {salesOpen ? <ChevronUp className="h-4 w-4 text-cyan-200" /> : <ChevronDown className="h-4 w-4 text-cyan-200" />}
-                </button>
-              </li>
-              <div className={`overflow-hidden transition-[max-height,opacity] duration-300 ${salesOpen ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-                <ul className="space-y-2 pl-12 pt-2">
-                  {salesItems.map((item, index) => {
-                    const Icon = item.icon
-                    const isActive = activePage === item.key
-                    return (
-                      <li key={index}>
-                        <button
-                          type="button"
-                          onClick={() => onSelectPage(item.key)}
-                          className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
-                            isActive ? 'bg-cyan-500/20 text-cyan-100 ring-1 ring-cyan-300/40' : 'text-slate-100 hover:bg-cyan-900/60'
-                          }`}
-                        >
-                          <span className="flex h-8 w-8 items-center justify-center rounded-2xl bg-cyan-400/20 text-cyan-200">
-                            <Icon className="h-4 w-4" />
-                          </span>
-                          {item.name}
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => setPricingOpen((value) => !value)}
-                  className="group flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-medium text-slate-100 transition hover:bg-cyan-900/60"
-                >
-                  <span className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-400/20 text-cyan-200">
-                      <DollarSign className="h-5 w-5" />
-                    </span>
-                    Pricing
-                  </span>
-                  {pricingOpen ? <ChevronUp className="h-4 w-4 text-cyan-200" /> : <ChevronDown className="h-4 w-4 text-cyan-200" />}
-                </button>
-              </li>
-              <div className={`overflow-hidden transition-[max-height,opacity] duration-300 ${pricingOpen ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-                <ul className="space-y-2 pl-12 pt-2">
-                  {pricingItems.map((item, index) => {
-                    const Icon = item.icon
-                    const isActive = activePage === item.key
-                    return (
-                      <li key={index}>
-                        <button
-                          type="button"
-                          onClick={() => onSelectPage(item.key)}
-                          className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
-                            isActive ? 'bg-cyan-500/20 text-cyan-100 ring-1 ring-cyan-300/40' : 'text-slate-100 hover:bg-cyan-900/60'
-                          }`}
-                        >
-                          <span className="flex h-8 w-8 items-center justify-center rounded-2xl bg-cyan-400/20 text-cyan-200">
-                            <Icon className="h-4 w-4" />
-                          </span>
-                          {item.name}
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => setParameterOpen((value) => !value)}
-                  className="group flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-medium text-slate-100 transition hover:bg-cyan-900/60"
-                >
-                  <span className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-400/20 text-cyan-200">
-                      <Settings2 className="h-5 w-5" />
-                    </span>
-                    Parameter
-                  </span>
-                  {parameterOpen ? <ChevronUp className="h-4 w-4 text-cyan-200" /> : <ChevronDown className="h-4 w-4 text-cyan-200" />}
-                </button>
-              </li>
-              <div className={`overflow-hidden transition-[max-height,opacity] duration-300 ${parameterOpen ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-                <ul className="space-y-2 pl-12 pt-2">
-                  {parameterItems.map((item, index) => {
-                    const Icon = item.icon
-                    const isActive = activePage === item.key
-                    return (
-                      <li key={index}>
-                        <button
-                          type="button"
-                          onClick={() => onSelectPage(item.key)}
-                          className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
-                            isActive ? 'bg-cyan-500/20 text-cyan-100 ring-1 ring-cyan-300/40' : 'text-slate-100 hover:bg-cyan-900/60'
-                          }`}
-                        >
-                          <span className="flex h-8 w-8 items-center justify-center rounded-2xl bg-cyan-400/20 text-cyan-200">
-                            <Icon className="h-4 w-4" />
-                          </span>
-                          {item.name}
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-            </ul>
-          </nav>
-        </div>
-
-        <div className="border-t border-cyan-900/65 p-4">
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-2">
-              <User className="h-4 w-4 text-cyan-200" />
-              <p className="text-sm font-medium text-cyan-100">{userDisplayName || 'Admin 339'}</p>
-            </div>
-            {onLogout && (
-              <button
-                type="button"
-                onClick={onLogout}
-                className="cursor-pointer mt-3 inline-flex items-center gap-2 rounded-lg border border-cyan-700/70 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-900/70"
-              >
-                <LogOut className="h-3.5 w-3.5" />
-                Logout
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </aside>
-    </>
   )
 }
 
-export default Sidebar;
+export default Sidebar
