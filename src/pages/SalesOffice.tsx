@@ -25,6 +25,8 @@ import type {
 } from '../types/officeSales';
 import type { LocationSelectOption } from '../types/officePricing';
 
+const OFFICE_SALES_CARD_PAGE_SIZE = 6;
+
 const SalesOffice = () => {
   const defaultLocationFilter = SELLING_LOCATIONS[0] ?? '';
   const defaultSalesDate = new Date().toISOString().split('T')[0] ?? '';
@@ -48,6 +50,12 @@ const SalesOffice = () => {
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
   const [editingRecord, setEditingRecord] = useState<OfficeSalesRecord | null>(null);
   const [isEditLoading, setIsEditLoading] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    message: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  }>({ isOpen: false, message: '', onConfirm: () => {}, onCancel: () => {} });
   const [editFormData, setEditFormData] = useState<AddFormData>({
     sales_date: defaultSalesDate,
     selling_location: defaultLocationFilter,
@@ -122,10 +130,10 @@ const SalesOffice = () => {
   const { data: officeSalesData, isLoading, isFetching } = useQuery<OfficeSalesQueryResult>({
     queryKey: ['office-sales', currentPage, selectedLocationFilter, sortKey, sortDirection],
     queryFn: async () => {
-      const offset = (currentPage - 1) * PAGE_SIZE;
+      const offset = (currentPage - 1) * OFFICE_SALES_CARD_PAGE_SIZE;
       const params = new URLSearchParams({
         select: '*',
-        limit: String(PAGE_SIZE),
+        limit: String(OFFICE_SALES_CARD_PAGE_SIZE),
         offset: String(offset),
         order: `${sortKey}.${sortDirection}`,
       });
@@ -437,6 +445,7 @@ const SalesOffice = () => {
         acc.totalStocks += item.stocks;
         acc.totalSolds += item.solds;
         acc.totalLeftovers += item.leftovers;
+        acc.totalCovers += item.covers;
         acc.totalCost += computed.totalCost ?? 0;
         acc.totalRevenue += computed.totalRevenue ?? 0;
         acc.totalLoss += computed.totalLoss ?? 0;
@@ -448,6 +457,7 @@ const SalesOffice = () => {
         totalStocks: 0,
         totalSolds: 0,
         totalLeftovers: 0,
+        totalCovers: 0,
         totalCost: 0,
         totalRevenue: 0,
         totalLoss: 0,
@@ -472,6 +482,7 @@ const SalesOffice = () => {
         acc.totalStocks += item.stocks;
         acc.totalSolds += item.solds;
         acc.totalLeftovers += item.leftovers;
+        acc.totalCovers += item.covers;
         acc.totalCost += computed.totalCost ?? 0;
         acc.totalRevenue += computed.totalRevenue ?? 0;
         acc.totalLoss += computed.totalLoss ?? 0;
@@ -483,6 +494,7 @@ const SalesOffice = () => {
         totalStocks: 0,
         totalSolds: 0,
         totalLeftovers: 0,
+        totalCovers: 0,
         totalCost: 0,
         totalRevenue: 0,
         totalLoss: 0,
@@ -523,26 +535,6 @@ const SalesOffice = () => {
     setCurrentPage(1);
   };
 
-  const handleSort = (nextKey: SortKey) => {
-    if (sortKey === nextKey) {
-      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-      setCurrentPage(1);
-      return;
-    }
-
-    setSortKey(nextKey);
-    setSortDirection('asc');
-    setCurrentPage(1);
-  };
-
-  const getSortIndicator = (key: SortKey) => {
-    if (sortKey !== key) {
-      return '\u2195';
-    }
-
-    return sortDirection === 'asc' ? '\u2191' : '\u2193';
-  };
-
   const getDetailSortIndicator = (key: DetailSortKey) => {
     if (detailSortKey !== key) {
       return '\u2195';
@@ -571,6 +563,25 @@ const SalesOffice = () => {
     setIsDetailSensorOn(true);
   };
 
+  const closeConfirm = () => {
+    setConfirmDialog({ isOpen: false, message: '', onConfirm: () => {}, onCancel: () => {} });
+  };
+
+  const showConfirm = (message: string, onConfirm: () => void) => {
+    setConfirmDialog({ isOpen: true, message, onConfirm, onCancel: () => {} });
+  };
+
+  const confirmAsync = (message: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      setConfirmDialog({
+        isOpen: true,
+        message,
+        onConfirm: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
+  };
+
   const handleCloseDetail = () => {
     setSelectedRecord(null);
     setDetailCurrentPage(1);
@@ -589,17 +600,26 @@ const SalesOffice = () => {
     setIsAddSensorOn(true);
   };
 
-  const handleCloseAddModal = () => {
-    if (isAddSubmitting) {
-      return;
-    }
-
+  const doCloseAddModal = () => {
     setIsAddModalOpen(false);
     setAddFormData({ sales_date: defaultSalesDate, selling_location: defaultLocationFilter });
     setAddFormItems([]);
     setAddItemsCurrentPage(1);
     setLocationSearchKeyword('');
     setProductSearchKeyword({});
+  };
+
+  const handleCloseAddModal = () => {
+    if (isAddSubmitting) {
+      return;
+    }
+
+    if (addFormItems.length > 0) {
+      showConfirm('You have unsaved data. Are you sure you want to close?', doCloseAddModal);
+      return;
+    }
+
+    doCloseAddModal();
   };
 
   const handleOpenEditModal = async (record: OfficeSalesRecord) => {
@@ -660,11 +680,7 @@ const SalesOffice = () => {
     }
   };
 
-  const handleCloseEditModal = () => {
-    if (isEditSubmitting) {
-      return;
-    }
-
+  const doCloseEditModal = () => {
     setIsEditModalOpen(false);
     setIsEditSensorOn(true);
     setIsEditSubmitting(false);
@@ -676,6 +692,19 @@ const SalesOffice = () => {
     setEditLocationSearchKeyword('');
     setEditProductSearchKeyword({});
     setEditOriginalDetailRecords([]);
+  };
+
+  const handleCloseEditModal = () => {
+    if (isEditSubmitting) {
+      return;
+    }
+
+    if (editFormItems.length > 0) {
+      showConfirm('You have unsaved data. Are you sure you want to close?', doCloseEditModal);
+      return;
+    }
+
+    doCloseEditModal();
   };
 
   const handleAddSalesDateChange = (value: string) => {
@@ -886,6 +915,11 @@ const SalesOffice = () => {
       return;
     }
 
+    const confirmed = await confirmAsync('Are you sure you want to submit this sales data?');
+    if (!confirmed) {
+      return;
+    }
+
     setIsAddSubmitting(true);
 
     try {
@@ -919,6 +953,7 @@ const SalesOffice = () => {
           total_stocks: addSummaryTotals.totalStocks,
           total_solds: addSummaryTotals.totalSolds,
           total_leftovers: addSummaryTotals.totalLeftovers,
+          total_covers: addSummaryTotals.totalCovers,
           total_cost: addSummaryTotals.totalCost,
           total_revenue: addSummaryTotals.totalRevenueNullable,
           total_loss: addSummaryTotals.totalLossNullable,
@@ -984,7 +1019,7 @@ const SalesOffice = () => {
 
       await queryClient.invalidateQueries({ queryKey: ['office-sales'] });
       toast.success('Office sales added successfully.');
-      handleCloseAddModal();
+      doCloseAddModal();
     } catch (error) {
       console.error('Error submitting add office sales:', error);
       toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -1014,6 +1049,11 @@ const SalesOffice = () => {
       return;
     }
 
+    const confirmed = await confirmAsync('Are you sure you want to update this sales data?');
+    if (!confirmed) {
+      return;
+    }
+
     setIsEditSubmitting(true);
 
     try {
@@ -1034,6 +1074,7 @@ const SalesOffice = () => {
           total_stocks: editSummaryTotals.totalStocks,
           total_solds: editSummaryTotals.totalSolds,
           total_leftovers: editSummaryTotals.totalLeftovers,
+          total_covers: editSummaryTotals.totalCovers,
           total_cost: editSummaryTotals.totalCost,
           total_revenue: editSummaryTotals.totalRevenueNullable,
           total_loss: editSummaryTotals.totalLossNullable,
@@ -1125,7 +1166,7 @@ const SalesOffice = () => {
       await queryClient.invalidateQueries({ queryKey: ['office-sales'], exact: false });
       await queryClient.invalidateQueries({ queryKey: ['office-sales-detail'], exact: false });
       toast.success('Office sales updated successfully.');
-      handleCloseEditModal();
+      doCloseEditModal();
     } catch (error) {
       console.error('Error submitting edit office sales:', error);
       toast.error(`Error updating office sales: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -1243,8 +1284,14 @@ const SalesOffice = () => {
       }
     >();
 
+    const REPORT_EXCLUDED_KEYWORDS = ['Cookies', 'Ubi', 'Telur'];
+
     (reportDetailRecords ?? []).forEach((item) => {
       if (item.is_free) {
+        return;
+      }
+
+      if (REPORT_EXCLUDED_KEYWORDS.some((keyword) => item.item_name.includes(keyword))) {
         return;
       }
 
@@ -1282,834 +1329,506 @@ const SalesOffice = () => {
   );
 
   return (
-    <div className="page-enter space-y-6">
+    <div className="page-enter space-y-5">
       <div className="page-header">
-        <nav className="text-sm text-slate-500" aria-label="Breadcrumb">
-          <ol className="inline-flex list-none flex-wrap items-center gap-2 p-0">
+        <nav className="text-xs text-slate-400" aria-label="Breadcrumb">
+          <ol className="inline-flex list-none items-center gap-1.5 p-0">
             <li>Home</li>
             <li>/</li>
-            <li className="font-semibold text-slate-900">Sales</li>
+            <li>Sales</li>
             <li>/</li>
-            <li className="font-semibold uppercase tracking-[0.08em] text-cyan-800">Office</li>
+            <li className="font-semibold text-cyan-700">Office</li>
           </ol>
         </nav>
         <h1 className="page-title">Office Sales</h1>
         <p className="page-subtitle">Manage sales data for channel offices.</p>
       </div>
 
-      <div className="glass-panel overflow-hidden rounded-2xl border border-cyan-100">
-        <div className="flex flex-col gap-2 border-b border-cyan-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div className="inline-flex flex-wrap items-center gap-2 rounded-xl bg-cyan-50 p-1">
-            {SELLING_LOCATIONS.map((location) => {
-              const isActive = selectedLocationFilter === location;
+      <div className="glass-panel overflow-hidden rounded-xl border border-slate-200">
+        {/* Toolbar */}
+        <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
+          {/* Location tabs */}
+          <div className="min-w-0 flex-1 overflow-x-auto">
+            <div className="inline-flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
+              {SELLING_LOCATIONS.map((location) => {
+                const isActive = selectedLocationFilter === location;
 
-              return (
-                <button
-                  key={location}
-                  type="button"
-                  onClick={() => handleLocationFilterChange(location)}
-                  className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                    isActive
-                      ? 'bg-white text-cyan-800 shadow-sm ring-1 ring-cyan-200'
-                      : 'text-slate-600 hover:bg-white/70 hover:text-cyan-700'
-                  }`}
-                >
-                  <MapPin className="h-3.5 w-3.5" />
-                  {location}
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={location}
+                    type="button"
+                    onClick={() => handleLocationFilterChange(location)}
+                    className={`inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-white text-cyan-700 shadow-sm ring-1 ring-slate-200'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                    {location}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          {/* Sort + Add */}
+          <div className="flex flex-shrink-0 items-center gap-2">
+            <div className="inline-flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-1">
+              {(
+                [
+                  { key: 'sales_date' as SortKey, dir: 'desc' as SortDirection, label: 'Newest' },
+                  { key: 'sales_date' as SortKey, dir: 'asc' as SortDirection, label: 'Oldest' },
+                  { key: 'total_solds' as SortKey, dir: 'desc' as SortDirection, label: 'Solds ↓' },
+                  { key: 'total_leftovers' as SortKey, dir: 'desc' as SortDirection, label: 'Leftovers ↓' },
+                  { key: 'is_saved' as SortKey, dir: 'asc' as SortDirection, label: 'Pending' },
+                ] as { key: SortKey; dir: SortDirection; label: string }[]
+              ).map(({ key, dir, label }) => {
+                const isActive = sortKey === key && sortDirection === dir;
+                return (
+                  <button
+                    key={`${key}.${dir}`}
+                    type="button"
+                    onClick={() => { setSortKey(key); setSortDirection(dir); setCurrentPage(1); }}
+                    className={`inline-flex cursor-pointer items-center whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      isActive
+                        ? 'bg-white text-cyan-700 shadow-sm ring-1 ring-slate-200'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
             <button
               type="button"
               onClick={handleOpenAddModal}
-              className="modern-primary flex cursor-pointer items-center justify-center gap-2 px-4 py-2 font-medium"
+              className="modern-primary flex cursor-pointer items-center gap-2 px-4 py-2 text-sm font-semibold"
             >
-              <Plus size={16} />
+              <Plus className="h-4 w-4" />
               Add
             </button>
           </div>
         </div>
 
+        {/* Card grid */}
         {loading ? (
-          <div className="p-10 text-center text-slate-500">Loading office sales...</div>
+          <div className="flex items-center justify-center py-16 text-sm text-slate-400">Loading office sales…</div>
+        ) : records.length === 0 ? (
+          <div className="flex items-center justify-center py-16 text-sm text-slate-400">No office sales found.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="modern-table w-full min-w-[980px]">
-              <thead className="border-b border-cyan-100">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('sales_date')} className="inline-flex cursor-pointer items-center gap-1">
-                      Sales Date <span>{getSortIndicator('sales_date')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('selling_location')} className="inline-flex cursor-pointer items-center gap-1">
-                      Selling Location <span>{getSortIndicator('selling_location')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('total_stocks')} className="inline-flex cursor-pointer items-center gap-1">
-                      Total Stocks <span>{getSortIndicator('total_stocks')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('total_solds')} className="inline-flex cursor-pointer items-center gap-1">
-                      Total Solds <span>{getSortIndicator('total_solds')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('total_leftovers')} className="inline-flex cursor-pointer items-center gap-1">
-                      Total Leftovers <span>{getSortIndicator('total_leftovers')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                    <button type="button" onClick={() => handleSort('is_saved')} className="inline-flex cursor-pointer items-center gap-1">
-                      Saved <span>{getSortIndicator('is_saved')}</span>
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-cyan-50 bg-white/80">
-                {records.map((record) => (
-                  <tr key={record.id}>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{formatSalesDate(record.sales_date)}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.selling_location}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.total_stocks}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.total_solds}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{record.total_leftovers}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
-                      <span
-                        className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
-                          record.is_saved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                        }`}
-                      >
-                        {record.is_saved ? 'Saved' : 'Pending'}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenDetail(record)}
-                          title="View detail"
-                          aria-label={`View detail for ${record.selling_location} at ${record.sales_date}`}
-                          className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void handleOpenEditModal(record);
-                          }}
-                          title="Edit data"
-                          aria-label={`Edit data for ${record.selling_location} at ${record.sales_date}`}
-                          className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-cyan-300 text-cyan-700 transition-colors hover:bg-cyan-50"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenReportModal(record)}
-                          title="Generate report"
-                          aria-label={`Generate report for ${record.selling_location} at ${record.sales_date}`}
-                          className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-violet-300 px-3 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-50"
-                        >
-                          <FileText className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+          <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+            {records.map((record) => (
+              <div
+                key={record.id}
+                className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+              >
+                {/* Card header */}
+                <div className="flex items-start justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="text-xs text-slate-400">{formatSalesDate(record.sales_date)}</p>
+                    <p className="mt-0.5 truncate font-semibold text-slate-800">{record.selling_location}</p>
+                  </div>
+                  <span className={`mt-0.5 inline-flex flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${record.is_saved ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {record.is_saved ? 'Saved' : 'Pending'}
+                  </span>
+                </div>
 
-        {!loading && records.length === 0 && (
-          <div className="p-10 text-center text-slate-500">No office sales found.</div>
+                {/* Stats */}
+                <div className="grid grid-cols-4 divide-x divide-slate-100 px-1 py-3">
+                  <div className="px-3 text-center">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Stocks</p>
+                    <p className="mt-1 text-xl font-bold tabular-nums text-slate-800">{record.total_stocks}</p>
+                  </div>
+                  <div className="px-3 text-center">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Solds</p>
+                    <p className="mt-1 text-xl font-bold tabular-nums text-cyan-600">{record.total_solds}</p>
+                  </div>
+                  <div className="px-3 text-center">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Left</p>
+                    <p className={`mt-1 text-xl font-bold tabular-nums ${record.total_leftovers > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                      {record.total_leftovers}
+                    </p>
+                  </div>
+                  <div className="px-3 text-center">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Covers</p>
+                    <p className={`mt-1 text-xl font-bold tabular-nums ${record.total_covers ?? 0 > 0 ? 'text-violet-600' : 'text-slate-400'}`}>
+                      {record.total_covers ?? 0}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sold / Left / Cover ratio bar */}
+                {record.total_stocks > 0 && (() => {
+                  const soldPct = Math.round((record.total_solds / record.total_stocks) * 100);
+                  const leftPct = Math.round((record.total_leftovers / record.total_stocks) * 100);
+                  const coverPct = Math.round(((record.total_covers ?? 0) / record.total_stocks) * 100);
+                  return (
+                    <div className="px-4 pb-3">
+                      <div className="flex overflow-hidden rounded-full bg-slate-100" style={{ height: '6px' }}>
+                        <div className="bg-cyan-500 transition-all" style={{ width: `${soldPct}%` }} />
+                        <div className="bg-violet-400 transition-all" style={{ width: `${coverPct}%` }} />
+                        <div className="bg-amber-400 transition-all" style={{ width: `${leftPct}%` }} />
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="flex items-center gap-1 text-[10px] font-semibold text-slate-500">
+                          <span className="inline-block h-2 w-2 rounded-full bg-cyan-500" />
+                          Sold {soldPct}%
+                        </span>
+                        {coverPct > 0 && (
+                          <span className="flex items-center gap-1 text-[10px] font-semibold text-slate-500">
+                            <span className="inline-block h-2 w-2 rounded-full bg-violet-400" />
+                            Cover {coverPct}%
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1 text-[10px] font-semibold text-slate-500">
+                          <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
+                          Left {leftPct}%
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Actions */}
+                <div className="mt-auto flex gap-2 border-t border-slate-100 px-3 py-2.5">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenDetail(record)}
+                    aria-label={`View detail for ${record.selling_location}`}
+                    className="inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-slate-200 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { void handleOpenEditModal(record); }}
+                    aria-label={`Edit ${record.selling_location}`}
+                    className="inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-cyan-200 py-1.5 text-xs font-semibold text-cyan-700 transition-colors hover:bg-cyan-50"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenReportModal(record)}
+                    aria-label={`Report for ${record.selling_location}`}
+                    className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-violet-200 px-3 py-1.5 text-violet-600 transition-colors hover:bg-violet-50"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
 
         <Pagination
           currentPage={currentPage}
           totalItems={totalItems}
-          pageSize={PAGE_SIZE}
+          pageSize={OFFICE_SALES_CARD_PAGE_SIZE}
           onPageChange={setCurrentPage}
         />
       </div>
 
       {selectedRecord && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
-          <div className="max-h-[92vh] w-[min(96vw,1560px)] max-w-none overflow-y-auto rounded-2xl border border-cyan-100 bg-white/95 p-5 shadow-2xl sm:p-6">
-            <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-4" style={{ background: 'rgba(0,0,0,0.2)' }}>
+          <div className="flex max-h-[94vh] w-full max-w-[1500px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            {/* Header */}
+            <div className="flex flex-shrink-0 items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">Office Sales Detail</h2>
-                <p className="mt-1 text-sm text-slate-500">Sales data summary and item list for selected transactions.</p>
+                <h2 className="text-lg font-bold text-slate-900">Office Sales Detail</h2>
+                <p className="mt-0.5 text-sm text-slate-400">Sales summary and item list for this transaction.</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setIsDetailSensorOn((prev) => !prev)}
-                  title={isDetailSensorOn ? 'Tampilkan nilai finansial' : 'Sembunyikan nilai finansial'}
-                  aria-label={isDetailSensorOn ? 'Tampilkan nilai finansial' : 'Sembunyikan nilai finansial'}
-                  className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                  title={isDetailSensorOn ? 'Show financials' : 'Hide financials'}
+                  aria-label={isDetailSensorOn ? 'Show financials' : 'Hide financials'}
+                  className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
                     isDetailSensorOn
-                      ? 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-                      : 'border-cyan-300 bg-cyan-50 text-cyan-800 hover:bg-cyan-100'
+                      ? 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                      : 'border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100'
                   }`}
                 >
-                  {isDetailSensorOn ? <EyeOff size={16} /> : <Eye size={16} />}
-                  {isDetailSensorOn ? 'Sensor: On' : 'Sensor: Off'}
+                  {isDetailSensorOn ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  {isDetailSensorOn ? 'Sensor On' : 'Sensor Off'}
                 </button>
                 <button
                   type="button"
                   onClick={handleCloseDetail}
-                  className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100"
-                  aria-label="Close detail modal"
-                  title="Close"
+                  className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600"
+                  aria-label="Close"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
-                <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Sales Date</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{formatSalesDate(selectedRecord.sales_date)}</p>
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {/* Info cards row 1 */}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Sales Date</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-800">{formatSalesDate(selectedRecord.sales_date)}</p>
                 </div>
-                <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Selling Location</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{selectedRecord.selling_location}</p>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Location</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-800">{selectedRecord.selling_location}</p>
                 </div>
-                <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Stocks</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{selectedRecord.total_stocks}</p>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Total Stocks</p>
+                  <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800">{selectedRecord.total_stocks}</p>
                 </div>
-                <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Solds</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{selectedRecord.total_solds}</p>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Total Solds</p>
+                  <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800">{selectedRecord.total_solds}</p>
                 </div>
-                <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Leftovers</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{selectedRecord.total_leftovers ?? '-'}</p>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Total Leftovers</p>
+                  <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800">{selectedRecord.total_leftovers ?? '-'}</p>
                 </div>
-                <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Saved</p>
-                  <div className="mt-2">
-                    <span className={getStatusBadgeClassName(selectedRecord.is_saved, 'bg-emerald-100 text-emerald-800', 'bg-amber-100 text-amber-800')}>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Total Covers</p>
+                  <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800">{selectedRecord.total_covers ?? '-'}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Saved</p>
+                  <div className="mt-1.5">
+                    <span className={getStatusBadgeClassName(selectedRecord.is_saved, 'bg-emerald-100 text-emerald-700', 'bg-amber-100 text-amber-700')}>
                       {selectedRecord.is_saved ? 'Done' : 'Pending'}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Cost</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900"><span className={detailSensorClass}>{formatCurrency(selectedRecord.total_cost)}</span></p>
+              {/* Info cards row 2 – financials */}
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Total Cost</p>
+                  <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800"><span className={detailSensorClass}>{formatCurrency(selectedRecord.total_cost)}</span></p>
                 </div>
-                <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Revenue</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900"><span className={detailSensorClass}>{formatCurrency(selectedRecord.total_revenue)}</span></p>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Total Revenue</p>
+                  <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800"><span className={detailSensorClass}>{formatCurrency(selectedRecord.total_revenue)}</span></p>
                 </div>
-                <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Loss</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900"><span className={detailSensorClass}>{formatCurrency(selectedRecord.total_loss)}</span></p>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Total Loss</p>
+                  <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800"><span className={detailSensorClass}>{formatCurrency(selectedRecord.total_loss)}</span></p>
                 </div>
-                <div
-                  className={`rounded-xl border p-4 shadow-sm ${
-                    selectedRecord.net_income > 0
-                      ? 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-cyan-50'
-                      : selectedRecord.net_income < 0
-                        ? 'border-rose-200 bg-gradient-to-br from-rose-50 to-orange-50'
-                        : 'border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Net Income</p>
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        selectedRecord.net_income > 0
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : selectedRecord.net_income < 0
-                            ? 'bg-rose-100 text-rose-800'
-                            : 'bg-slate-100 text-slate-700'
-                      }`}
-                    >
-                      {selectedRecord.net_income > 0 ? <TrendingUp className="h-3.5 w-3.5" /> : selectedRecord.net_income < 0 ? <TrendingDown className="h-3.5 w-3.5" /> : <Minus className="h-3.5 w-3.5" />}
-                      {selectedRecord.net_income > 0 ? 'Profit' : selectedRecord.net_income < 0 ? 'Loss' : 'Break Even'}
+                <div className={`rounded-xl border p-3 ${selectedRecord.net_income > 0 ? 'border-emerald-200 bg-emerald-50' : selectedRecord.net_income < 0 ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-slate-50'}`}>
+                  <div className="flex items-center justify-between gap-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Net Income</p>
+                    <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${selectedRecord.net_income > 0 ? 'bg-emerald-100 text-emerald-700' : selectedRecord.net_income < 0 ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'}`}>
+                      {selectedRecord.net_income > 0 ? <TrendingUp className="h-3 w-3" /> : selectedRecord.net_income < 0 ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+                      {selectedRecord.net_income > 0 ? 'Profit' : selectedRecord.net_income < 0 ? 'Loss' : 'Even'}
                     </span>
                   </div>
-                  <p
-                    className={`mt-2 text-lg font-bold ${
-                      selectedRecord.net_income > 0 ? 'text-emerald-700' : selectedRecord.net_income < 0 ? 'text-rose-700' : 'text-slate-700'
-                    }`}
-                  >
+                  <p className={`mt-1 text-sm font-bold tabular-nums ${selectedRecord.net_income > 0 ? 'text-emerald-700' : selectedRecord.net_income < 0 ? 'text-rose-600' : 'text-slate-700'}`}>
                     <span className={detailSensorClass}>{formatCurrency(selectedRecord.net_income)}</span>
                   </p>
                 </div>
               </div>
+
+              {/* Items section */}
+              <div className="mt-5">
+                <h3 className="mb-3 text-sm font-semibold text-slate-700">Items</h3>
+                <div className="overflow-hidden rounded-xl border border-slate-200">
+                  {detailLoading ? (
+                    <div className="flex items-center justify-center py-12 text-sm text-slate-400">Loading item details…</div>
+                  ) : detailRecords.length === 0 ? (
+                    <div className="flex items-center justify-center py-12 text-sm text-slate-400">No item details found.</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="modern-table w-full min-w-[900px]">
+                        <thead className="border-b border-slate-200 bg-slate-50">
+                          <tr>
+                            <th className="px-4 py-2.5 text-left">
+                              <button type="button" onClick={() => handleDetailSort('item_name')} className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-800">
+                                Product <span className="tabular-nums">{getDetailSortIndicator('item_name')}</span>
+                              </button>
+                            </th>
+                            <th className="px-4 py-2.5 text-left">
+                              <button type="button" onClick={() => handleDetailSort('stocks')} className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-800">
+                                Stocks <span className="tabular-nums">{getDetailSortIndicator('stocks')}</span>
+                              </button>
+                            </th>
+                            <th className="px-4 py-2.5 text-left">
+                              <button type="button" onClick={() => handleDetailSort('solds')} className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-800">
+                                Solds <span className="tabular-nums">{getDetailSortIndicator('solds')}</span>
+                              </button>
+                            </th>
+                            <th className="px-4 py-2.5 text-left">
+                              <button type="button" onClick={() => handleDetailSort('leftovers')} className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-800">
+                                Leftovers <span className="tabular-nums">{getDetailSortIndicator('leftovers')}</span>
+                              </button>
+                            </th>
+                            <th className="px-4 py-2.5 text-left">
+                              <button type="button" onClick={() => handleDetailSort('is_ordered')} className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-800">
+                                Ordered <span className="tabular-nums">{getDetailSortIndicator('is_ordered')}</span>
+                              </button>
+                            </th>
+                            <th className="px-4 py-2.5 text-left">
+                              <button type="button" onClick={() => handleDetailSort('is_free')} className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-800">
+                                Free <span className="tabular-nums">{getDetailSortIndicator('is_free')}</span>
+                              </button>
+                            </th>
+                            <th className="px-4 py-2.5 text-left">
+                              <button type="button" onClick={() => handleDetailSort('total_cost')} className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-800">
+                                Cost <span className="tabular-nums">{getDetailSortIndicator('total_cost')}</span>
+                              </button>
+                            </th>
+                            <th className="px-4 py-2.5 text-left">
+                              <button type="button" onClick={() => handleDetailSort('total_revenue')} className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-800">
+                                Revenue <span className="tabular-nums">{getDetailSortIndicator('total_revenue')}</span>
+                              </button>
+                            </th>
+                            <th className="px-4 py-2.5 text-left">
+                              <button type="button" onClick={() => handleDetailSort('total_loss')} className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-800">
+                                Loss <span className="tabular-nums">{getDetailSortIndicator('total_loss')}</span>
+                              </button>
+                            </th>
+                            <th className="px-4 py-2.5 text-left">
+                              <button type="button" onClick={() => handleDetailSort('net_income')} className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-800">
+                                Net <span className="tabular-nums">{getDetailSortIndicator('net_income')}</span>
+                              </button>
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {detailRecords.map((detail, index) => (
+                            <tr key={`${detail.item_name}-${index}`} className="hover:bg-slate-50/60">
+                              <td className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-slate-800">{detail.item_name}</td>
+                              <td className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums text-slate-700">{detail.stocks}</td>
+                              <td className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums text-slate-700">{detail.solds}</td>
+                              <td className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums text-slate-700">{detail.leftovers ?? '-'}</td>
+                              <td className="whitespace-nowrap px-4 py-2.5">
+                                <span title={detail.is_ordered ? 'Ordered' : 'Not Ordered'} aria-label={detail.is_ordered ? 'Ordered' : 'Not Ordered'} className={`inline-flex ${detail.is_ordered ? 'text-emerald-500' : 'text-rose-400'}`}>
+                                  {detail.is_ordered ? <CircleCheck className="h-4 w-4" /> : <CircleX className="h-4 w-4" />}
+                                </span>
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-2.5">
+                                <span title={detail.is_free ? 'Free' : 'Paid'} aria-label={detail.is_free ? 'Free' : 'Paid'} className={`inline-flex ${detail.is_free ? 'text-emerald-500' : 'text-rose-400'}`}>
+                                  {detail.is_free ? <CircleCheck className="h-4 w-4" /> : <CircleX className="h-4 w-4" />}
+                                </span>
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums text-slate-700"><span className={detailSensorClass}>{formatCurrency(detail.total_cost)}</span></td>
+                              <td className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums text-slate-700"><span className={detailSensorClass}>{formatCurrency(detail.total_revenue)}</span></td>
+                              <td className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums text-slate-700"><span className={detailSensorClass}>{formatCurrency(detail.total_loss)}</span></td>
+                              <td className="whitespace-nowrap px-4 py-2.5">
+                                <span className={`inline-flex items-center gap-1 text-sm font-semibold tabular-nums ${detail.net_income > 0 ? 'text-emerald-600' : detail.net_income < 0 ? 'text-rose-600' : 'text-slate-500'}`}>
+                                  {detail.net_income > 0 ? <TrendingUp className="h-3.5 w-3.5" /> : detail.net_income < 0 ? <TrendingDown className="h-3.5 w-3.5" /> : <Minus className="h-3.5 w-3.5" />}
+                                  <span className={detailSensorClass}>{formatCurrency(detail.net_income)}</span>
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {!detailLoading && detailRecords.length > 0 && (
+                    <Pagination
+                      currentPage={detailCurrentPage}
+                      totalItems={detailTotalItems}
+                      pageSize={PAGE_SIZE}
+                      onPageChange={setDetailCurrentPage}
+                    />
+                  )}
+                </div>
+              </div>
             </div>
 
-            <div className="mt-8 space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900">Items</h3>
-                <p className="mt-1 text-sm text-slate-500">List of items from the office sales detail view for this data.</p>
-              </div>
-
-              <div className="overflow-hidden rounded-2xl border border-cyan-100">
-                {detailLoading ? (
-                  <div className="p-10 text-center text-slate-500">Loading item details...</div>
-                ) : detailRecords.length === 0 ? (
-                  <div className="p-10 text-center text-slate-500">No item details found.</div>
-                ) : (
-                  <div>
-                    <table className="modern-table w-full table-auto">
-                      <thead className="border-b border-cyan-100">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                            <button type="button" onClick={() => handleDetailSort('item_name')} className="inline-flex cursor-pointer items-center gap-1">
-                              Product <span>{getDetailSortIndicator('item_name')}</span>
-                            </button>
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                            <button type="button" onClick={() => handleDetailSort('stocks')} className="inline-flex cursor-pointer items-center gap-1">
-                              Stocks <span>{getDetailSortIndicator('stocks')}</span>
-                            </button>
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                            <button type="button" onClick={() => handleDetailSort('solds')} className="inline-flex cursor-pointer items-center gap-1">
-                              Solds <span>{getDetailSortIndicator('solds')}</span>
-                            </button>
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                            <button type="button" onClick={() => handleDetailSort('leftovers')} className="inline-flex cursor-pointer items-center gap-1">
-                              Leftovers <span>{getDetailSortIndicator('leftovers')}</span>
-                            </button>
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                            <button type="button" onClick={() => handleDetailSort('is_ordered')} className="inline-flex cursor-pointer items-center gap-1">
-                              Ordered <span>{getDetailSortIndicator('is_ordered')}</span>
-                            </button>
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                            <button type="button" onClick={() => handleDetailSort('is_free')} className="inline-flex cursor-pointer items-center gap-1">
-                              Free <span>{getDetailSortIndicator('is_free')}</span>
-                            </button>
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                            <button type="button" onClick={() => handleDetailSort('total_cost')} className="inline-flex cursor-pointer items-center gap-1">
-                              Total Cost <span>{getDetailSortIndicator('total_cost')}</span>
-                            </button>
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                            <button type="button" onClick={() => handleDetailSort('total_revenue')} className="inline-flex cursor-pointer items-center gap-1">
-                              Total Revenue <span>{getDetailSortIndicator('total_revenue')}</span>
-                            </button>
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                            <button type="button" onClick={() => handleDetailSort('total_loss')} className="inline-flex cursor-pointer items-center gap-1">
-                              Total Loss <span>{getDetailSortIndicator('total_loss')}</span>
-                            </button>
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
-                            <button type="button" onClick={() => handleDetailSort('net_income')} className="inline-flex cursor-pointer items-center gap-1">
-                              Net Income <span>{getDetailSortIndicator('net_income')}</span>
-                            </button>
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-cyan-50 bg-white/80">
-                        {detailRecords.map((detail, index) => (
-                          <tr key={`${detail.item_name}-${index}`}>
-                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{detail.item_name}</td>
-                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{detail.stocks}</td>
-                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{detail.solds}</td>
-                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">{detail.leftovers ?? '-'}</td>
-                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
-                              <span
-                                title={detail.is_ordered ? 'Ordered' : 'Not Ordered'}
-                                aria-label={detail.is_ordered ? 'Ordered' : 'Not Ordered'}
-                                className={`inline-flex ${detail.is_ordered ? 'text-emerald-600' : 'text-rose-600'}`}
-                              >
-                                {detail.is_ordered ? <CircleCheck className="h-4 w-4" /> : <CircleX className="h-4 w-4" />}
-                              </span>
-                            </td>
-                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
-                              <span
-                                title={detail.is_free ? 'Free' : 'Paid'}
-                                aria-label={detail.is_free ? 'Free' : 'Paid'}
-                                className={`inline-flex ${detail.is_free ? 'text-emerald-600' : 'text-rose-600'}`}
-                              >
-                                {detail.is_free ? <CircleCheck className="h-4 w-4" /> : <CircleX className="h-4 w-4" />}
-                              </span>
-                            </td>
-                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900"><span className={detailSensorClass}>{formatCurrency(detail.total_cost)}</span></td>
-                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900"><span className={detailSensorClass}>{formatCurrency(detail.total_revenue)}</span></td>
-                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900"><span className={detailSensorClass}>{formatCurrency(detail.total_loss)}</span></td>
-                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
-                              <span
-                                className={`inline-flex items-center gap-1.5 font-medium ${
-                                  detail.net_income > 0 ? 'text-emerald-700' : detail.net_income < 0 ? 'text-rose-700' : 'text-slate-700'
-                                }`}
-                                title={detail.net_income > 0 ? 'Profit' : detail.net_income < 0 ? 'Loss' : 'Break Even'}
-                                aria-label={detail.net_income > 0 ? 'Profit' : detail.net_income < 0 ? 'Loss' : 'Break Even'}
-                              >
-                                {detail.net_income > 0 ? <TrendingUp className="h-4 w-4" /> : detail.net_income < 0 ? <TrendingDown className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
-                                <span className={detailSensorClass}>{formatCurrency(detail.net_income)}</span>
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {!detailLoading && detailRecords.length > 0 && (
-                  <Pagination
-                    currentPage={detailCurrentPage}
-                    totalItems={detailTotalItems}
-                    pageSize={PAGE_SIZE}
-                    onPageChange={setDetailCurrentPage}
-                  />
-                )}
-              </div>
+            {/* Footer */}
+            <div className="flex flex-shrink-0 border-t border-slate-100 px-5 py-4">
+              <button
+                type="button"
+                onClick={handleCloseDetail}
+                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                <X className="h-4 w-4" />
+                Close
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
-          <div className="max-h-[92vh] w-[min(96vw,1040px)] max-w-none overflow-y-auto rounded-2xl border border-cyan-100 bg-white/95 p-5 shadow-2xl sm:p-6">
-            <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-4" style={{ background: 'rgba(0,0,0,0.2)' }}>
+          <div className="flex max-h-[94vh] w-full max-w-[1500px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            {/* Header */}
+            <div className="flex flex-shrink-0 items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">Add Office Sales</h2>
-                <p className="mt-1 text-sm text-slate-500">Create a new office sales record with items details.</p>
+                <h2 className="text-lg font-bold text-slate-900">Add Office Sales</h2>
+                <p className="mt-0.5 text-sm text-slate-400">Create a new office sales record with item details.</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setIsAddSensorOn((prev) => !prev)}
-                  title={isAddSensorOn ? 'Tampilkan nilai finansial' : 'Sembunyikan nilai finansial'}
-                  aria-label={isAddSensorOn ? 'Tampilkan nilai finansial' : 'Sembunyikan nilai finansial'}
-                  className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                  title={isAddSensorOn ? 'Show financials' : 'Hide financials'}
+                  aria-label={isAddSensorOn ? 'Show financials' : 'Hide financials'}
+                  className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
                     isAddSensorOn
-                      ? 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-                      : 'border-cyan-300 bg-cyan-50 text-cyan-800 hover:bg-cyan-100'
+                      ? 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                      : 'border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100'
                   }`}
                 >
-                  {isAddSensorOn ? <EyeOff size={16} /> : <Eye size={16} />}
-                  {isAddSensorOn ? 'Sensor: On' : 'Sensor: Off'}
+                  {isAddSensorOn ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  {isAddSensorOn ? 'Sensor On' : 'Sensor Off'}
                 </button>
                 <button
                   type="button"
                   onClick={handleCloseAddModal}
                   disabled={isAddSubmitting}
-                  className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                  aria-label="Close modal"
-                  title="Close"
+                  className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600 disabled:opacity-50"
+                  aria-label="Close"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
             </div>
 
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">Sales Date</label>
-                  <div className="relative" onClick={() => openDatePicker(addSalesDateRef.current)}>
-                    <input
-                      type="text"
-                      value={addFormData.sales_date ? formatSalesDate(addFormData.sales_date) : ''}
-                      readOnly
-                      placeholder="dddd, dd mmmm yyyy"
-                      className="w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                    />
-                    <input
-                      ref={addSalesDateRef}
-                      type="date"
-                      value={addFormData.sales_date}
-                      onChange={(e) => handleAddSalesDateChange(e.target.value)}
-                      className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">Selling Location</label>
-                  <Select<LocationSelectOption, false>
-                    options={addLocationOptions}
-                    value={selectedAddLocationOption}
-                    onChange={handleAddLocationSelectChange}
-                    onInputChange={handleAddLocationSearchInputChange}
-                    isSearchable
-                    isClearable
-                    placeholder="Select or search selling location"
-                    formatOptionLabel={(option) => (
-                      <span>{renderHighlightedLabel(option.label, locationSearchKeyword)}</span>
-                    )}
-                    noOptionsMessage={() => 'Selling location not found'}
-                    classNames={getReactSelectClassNames(false, false)}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Stocks</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{addSummaryTotals.totalStocks}</p>
-                </div>
-                <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Solds</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{addSummaryTotals.totalSolds}</p>
-                </div>
-                <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Leftovers</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{addSummaryTotals.totalLeftovers}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Cost</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900"><span className={addSensorClass}>{formatCurrency(addSummaryTotals.totalCost)}</span></p>
-                </div>
-                <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Revenue</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900"><span className={addSensorClass}>{formatCurrency(addSummaryTotals.totalRevenue)}</span></p>
-                </div>
-                <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Loss</p>
-                  <p className="mt-1 text-sm font-medium text-slate-900"><span className={addSensorClass}>{formatCurrency(addSummaryTotals.totalLoss)}</span></p>
-                </div>
-                <div
-                  className={`rounded-xl border p-4 shadow-sm ${
-                    addSummaryTotals.netIncome > 0
-                      ? 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-cyan-50'
-                      : addSummaryTotals.netIncome < 0
-                        ? 'border-rose-200 bg-gradient-to-br from-rose-50 to-orange-50'
-                        : 'border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100'
-                  }`}
-                >
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Net Income</p>
-                  <p className={`mt-2 text-sm font-bold ${addSummaryTotals.netIncome > 0 ? 'text-emerald-700' : addSummaryTotals.netIncome < 0 ? 'text-rose-700' : 'text-slate-700'}`}>
-                    <span className={addSensorClass}>{formatCurrency(addSummaryTotals.netIncome)}</span>
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              <div className="space-y-5">
+                {/* Date + Location */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <h3 className="text-base font-semibold text-slate-900">Items</h3>
-                    <p className="mt-1 text-sm text-slate-500">Only active item mappings from Office Pricing for selected location are shown.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAddRow}
-                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-800 transition-colors hover:bg-cyan-100"
-                  >
-                    <Plus size={16} />
-                    Add Row
-                  </button>
-                </div>
-
-                <div className="overflow-hidden rounded-2xl border border-cyan-100">
-                  {addFormItems.length === 0 ? (
-                    <div className="p-10 text-center text-slate-500">No items added yet. Click Add Row to add items.</div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="modern-table w-full min-w-[1660px]">
-                        <thead className="border-b border-cyan-100">
-                          <tr>
-                            <th className="w-[360px] min-w-[360px] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Product</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Stocks</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Solds</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Covers</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Leftovers</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Ordered</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Free</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Total Cost</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Total Revenue</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Total Loss</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Net Income</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-cyan-50 bg-white/80">
-                          {paginatedAddFormItems.map((item) => {
-                            const computed = getAddItemComputedValues(item);
-
-                            return (
-                              <tr key={item.id}>
-                                <td className="w-[360px] min-w-[360px] px-4 py-4 text-sm text-slate-900">
-                                  <Select<AddOfficePricingOption, false>
-                                    options={addOfficePricingOptions}
-                                    value={addOfficePricingOptions.find((option) => option.value === item.office_pricing_id) ?? null}
-                                    onChange={(selected) => handleItemChange(item.id, 'office_pricing_id', selected?.value ?? '')}
-                                    onInputChange={(value, meta) => handleAddProductSearchInputChange(item.id, value, meta)}
-                                    isSearchable
-                                    isClearable
-                                    menuPlacement="top"
-                                    menuPosition="fixed"
-                                    menuPortalTarget={document.body}
-                                    placeholder="Select or search product"
-                                    formatOptionLabel={(option) => (
-                                      <span>{renderHighlightedLabel(option.label, productSearchKeyword[item.id] ?? '')}</span>
-                                    )}
-                                    noOptionsMessage={() => 'Product not found'}
-                                    classNames={getReactSelectClassNames(false, false)}
-                                    styles={{
-                                      menuPortal: (base) => ({
-                                        ...base,
-                                        zIndex: 80,
-                                      }),
-                                    }}
-                                  />
-                                </td>
-                                <td className="px-4 py-4 text-sm text-slate-900">
-                                  <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    value={item.stocks === 0 ? '' : item.stocks}
-                                    onChange={(e) => handleItemChange(item.id, 'stocks', parseNumberInput(e.target.value))}
-                                    placeholder="0"
-                                    className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                                  />
-                                </td>
-                                <td className="px-4 py-4 text-sm text-slate-900">
-                                  <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    value={item.solds === 0 ? '' : item.solds}
-                                    onChange={(e) => handleItemChange(item.id, 'solds', parseNumberInput(e.target.value))}
-                                    placeholder="0"
-                                    className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                                  />
-                                </td>
-                                <td className="px-4 py-4 text-sm text-slate-900">
-                                  <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    value={item.covers === 0 ? '' : item.covers}
-                                    onChange={(e) => handleItemChange(item.id, 'covers', parseNumberInput(e.target.value))}
-                                    placeholder="0"
-                                    className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                                  />
-                                </td>
-                                <td className="px-4 py-4 text-sm text-slate-900">
-                                  <input
-                                    type="number"
-                                    value={item.leftovers}
-                                    disabled
-                                    className="w-full cursor-not-allowed rounded border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-600"
-                                  />
-                                </td>
-                                <td className="px-4 py-4 text-sm text-slate-900">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleItemChange(item.id, 'is_ordered', !item.is_ordered)}
-                                    className={`inline-flex h-7 w-12 items-center cursor-pointer rounded-full p-1 transition ${
-                                      item.is_ordered ? 'bg-emerald-500' : 'bg-slate-300'
-                                    }`}
-                                  >
-                                    <span
-                                      className={`h-5 w-5 rounded-full bg-white transition ${
-                                        item.is_ordered ? 'translate-x-5' : 'translate-x-0'
-                                      }`}
-                                    />
-                                  </button>
-                                </td>
-                                <td className="px-4 py-4 text-sm text-slate-900">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleItemChange(item.id, 'is_free', !item.is_free)}
-                                    className={`inline-flex h-7 w-12 items-center cursor-pointer rounded-full p-1 transition ${
-                                      item.is_free ? 'bg-emerald-500' : 'bg-slate-300'
-                                    }`}
-                                  >
-                                    <span
-                                      className={`h-5 w-5 rounded-full bg-white transition ${
-                                        item.is_free ? 'translate-x-5' : 'translate-x-0'
-                                      }`}
-                                    />
-                                  </button>
-                                </td>
-                                <td className="px-4 py-4 text-sm text-slate-900">
-                                  <input
-                                    type="text"
-                                    disabled
-                                    value={formatCurrency(computed.totalCost)}
-                                    className="w-full cursor-not-allowed rounded border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-600"
-                                    style={isAddSensorOn ? { filter: 'blur(4px)' } : undefined}
-                                  />
-                                </td>
-                                <td className="px-4 py-4 text-sm text-slate-900">
-                                  <input
-                                    type="text"
-                                    disabled
-                                    value={formatCurrency(computed.totalRevenue)}
-                                    className="w-full cursor-not-allowed rounded border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-600"
-                                    style={isAddSensorOn ? { filter: 'blur(4px)' } : undefined}
-                                  />
-                                </td>
-                                <td className="px-4 py-4 text-sm text-slate-900">
-                                  <input
-                                    type="text"
-                                    disabled
-                                    value={formatCurrency(computed.totalLoss)}
-                                    className="w-full cursor-not-allowed rounded border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-600"
-                                    style={isAddSensorOn ? { filter: 'blur(4px)' } : undefined}
-                                  />
-                                </td>
-                                <td className="px-4 py-4 text-sm text-slate-900">
-                                  <input
-                                    type="text"
-                                    disabled
-                                    value={formatCurrency(computed.netIncome)}
-                                    className="w-full cursor-not-allowed rounded border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-600"
-                                    style={isAddSensorOn ? { filter: 'blur(4px)' } : undefined}
-                                  />
-                                </td>
-                                <td className="px-4 py-4 text-sm text-slate-900">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveRow(item.id)}
-                                    className="inline-flex items-center justify-center cursor-pointer rounded p-1 text-rose-600 transition-colors hover:bg-rose-50"
-                                    title="Delete row"
-                                    aria-label="Delete row"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {addFormItems.length > 0 && (
-                    <Pagination
-                      currentPage={addItemsCurrentPage}
-                      totalItems={addFormItems.length}
-                      pageSize={ADD_ITEMS_PAGE_SIZE}
-                      onPageChange={setAddItemsCurrentPage}
-                    />
-                  )}
-                </div>
-              </div>
-
-              <div className="flex gap-3 border-t border-slate-200 pt-6">
-                <button
-                  type="button"
-                  onClick={handleCloseAddModal}
-                  disabled={isAddSubmitting}
-                  className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <XCircle className="h-4 w-4" />
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSubmitAddForm}
-                  disabled={isAddSubmitting}
-                  className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Plus className="h-4 w-4" />
-                  {isAddSubmitting ? 'Creating...' : 'Create Sales'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
-          <div className="max-h-[92vh] w-[min(96vw,1040px)] max-w-none overflow-y-auto rounded-2xl border border-cyan-100 bg-white/95 p-5 shadow-2xl sm:p-6">
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">Edit Office Sales</h2>
-                <p className="mt-1 text-sm text-slate-500">Update existing office sales data and item details.</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsEditSensorOn((prev) => !prev)}
-                  title={isEditSensorOn ? 'Tampilkan nilai finansial' : 'Sembunyikan nilai finansial'}
-                  aria-label={isEditSensorOn ? 'Tampilkan nilai finansial' : 'Sembunyikan nilai finansial'}
-                  className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                    isEditSensorOn
-                      ? 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-                      : 'border-cyan-300 bg-cyan-50 text-cyan-800 hover:bg-cyan-100'
-                  }`}
-                >
-                  {isEditSensorOn ? <EyeOff size={16} /> : <Eye size={16} />}
-                  {isEditSensorOn ? 'Sensor: On' : 'Sensor: Off'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCloseEditModal}
-                  disabled={isEditSubmitting}
-                  className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                  aria-label="Close edit modal"
-                  title="Close"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            {isEditLoading ? (
-              <div className="p-10 text-center text-slate-500">Loading sales details...</div>
-            ) : (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">Sales Date</label>
-                    <div className="relative" onClick={() => openDatePicker(editSalesDateRef.current)}>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Sales Date</label>
+                    <div className="relative" onClick={() => openDatePicker(addSalesDateRef.current)}>
                       <input
                         type="text"
-                        value={editFormData.sales_date ? formatSalesDate(editFormData.sales_date) : ''}
+                        value={addFormData.sales_date ? formatSalesDate(addFormData.sales_date) : ''}
                         readOnly
                         placeholder="dddd, dd mmmm yyyy"
-                        className="w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                        className="modern-input w-full cursor-pointer px-3 py-2 text-sm text-slate-800"
                       />
                       <input
-                        ref={editSalesDateRef}
+                        ref={addSalesDateRef}
                         type="date"
-                        value={editFormData.sales_date}
-                        onChange={(e) => handleEditSalesDateChange(e.target.value)}
+                        value={addFormData.sales_date}
+                        onChange={(e) => handleAddSalesDateChange(e.target.value)}
                         className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
                       />
                     </div>
                   </div>
-
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">Selling Location</label>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Selling Location</label>
                     <Select<LocationSelectOption, false>
                       options={addLocationOptions}
-                      value={selectedEditLocationOption}
-                      onChange={handleEditLocationSelectChange}
-                      onInputChange={handleEditLocationSearchInputChange}
+                      value={selectedAddLocationOption}
+                      onChange={handleAddLocationSelectChange}
+                      onInputChange={handleAddLocationSearchInputChange}
                       isSearchable
                       isClearable
                       placeholder="Select or search selling location"
                       formatOptionLabel={(option) => (
-                        <span>{renderHighlightedLabel(option.label, editLocationSearchKeyword)}</span>
+                        <span>{renderHighlightedLabel(option.label, locationSearchKeyword)}</span>
                       )}
                       noOptionsMessage={() => 'Selling location not found'}
                       classNames={getReactSelectClassNames(false, false)}
@@ -2117,235 +1836,201 @@ const SalesOffice = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Stocks</p>
-                    <p className="mt-1 text-sm font-medium text-slate-900">{editSummaryTotals.totalStocks}</p>
+                {/* Summary stats */}
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Stocks</p>
+                    <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800">{addSummaryTotals.totalStocks}</p>
                   </div>
-                  <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Solds</p>
-                    <p className="mt-1 text-sm font-medium text-slate-900">{editSummaryTotals.totalSolds}</p>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Solds</p>
+                    <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800">{addSummaryTotals.totalSolds}</p>
                   </div>
-                  <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Leftovers</p>
-                    <p className="mt-1 text-sm font-medium text-slate-900">{editSummaryTotals.totalLeftovers}</p>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Leftovers</p>
+                    <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800">{addSummaryTotals.totalLeftovers}</p>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Cost</p>
-                    <p className="mt-1 text-sm font-medium text-slate-900"><span className={editSensorClass}>{formatCurrency(editSummaryTotals.totalCost)}</span></p>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Covers</p>
+                    <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800">{addSummaryTotals.totalCovers}</p>
                   </div>
-                  <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Revenue</p>
-                    <p className="mt-1 text-sm font-medium text-slate-900"><span className={editSensorClass}>{formatCurrency(editSummaryTotals.totalRevenue)}</span></p>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Cost</p>
+                    <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800"><span className={addSensorClass}>{formatCurrency(addSummaryTotals.totalCost)}</span></p>
                   </div>
-                  <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Loss</p>
-                    <p className="mt-1 text-sm font-medium text-slate-900"><span className={editSensorClass}>{formatCurrency(editSummaryTotals.totalLoss)}</span></p>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Revenue</p>
+                    <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800"><span className={addSensorClass}>{formatCurrency(addSummaryTotals.totalRevenue)}</span></p>
                   </div>
-                  <div
-                    className={`rounded-xl border p-4 shadow-sm ${
-                      editSummaryTotals.netIncome > 0
-                        ? 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-cyan-50'
-                        : editSummaryTotals.netIncome < 0
-                          ? 'border-rose-200 bg-gradient-to-br from-rose-50 to-orange-50'
-                          : 'border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100'
-                    }`}
-                  >
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Net Income</p>
-                    <p className={`mt-2 text-sm font-bold ${editSummaryTotals.netIncome > 0 ? 'text-emerald-700' : editSummaryTotals.netIncome < 0 ? 'text-rose-700' : 'text-slate-700'}`}>
-                      <span className={editSensorClass}>{formatCurrency(editSummaryTotals.netIncome)}</span>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Loss</p>
+                    <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800"><span className={addSensorClass}>{formatCurrency(addSummaryTotals.totalLoss)}</span></p>
+                  </div>
+                  <div className={`rounded-xl border p-3 ${addSummaryTotals.netIncome > 0 ? 'border-emerald-200 bg-emerald-50' : addSummaryTotals.netIncome < 0 ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-slate-50'}`}>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Net Income</p>
+                    <p className={`mt-1 text-sm font-bold tabular-nums ${addSummaryTotals.netIncome > 0 ? 'text-emerald-700' : addSummaryTotals.netIncome < 0 ? 'text-rose-600' : 'text-slate-700'}`}>
+                      <span className={addSensorClass}>{formatCurrency(addSummaryTotals.netIncome)}</span>
                     </p>
                   </div>
                 </div>
 
-                <div className="space-y-4">
+                {/* Items */}
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-base font-semibold text-slate-900">Items</h3>
-                      <p className="mt-1 text-sm text-slate-500">Edit mapped items and quantity values for this office sales record.</p>
+                      <h3 className="text-sm font-semibold text-slate-800">Items</h3>
+                      <p className="mt-0.5 text-xs text-slate-400">Active office pricing items for the selected location.</p>
                     </div>
                     <button
                       type="button"
-                      onClick={handleEditRow}
-                      className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-800 transition-colors hover:bg-cyan-100"
+                      onClick={handleAddRow}
+                      className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 transition-colors hover:bg-cyan-100"
                     >
-                      <Plus size={16} />
+                      <Plus className="h-3.5 w-3.5" />
                       Add Row
                     </button>
                   </div>
 
-                  <div className="overflow-hidden rounded-2xl border border-cyan-100">
-                    {editFormItems.length === 0 ? (
-                      <div className="p-10 text-center text-slate-500">No items available. Click Add Row to add items.</div>
+                  <div className="overflow-hidden rounded-xl border border-slate-200">
+                    {addFormItems.length === 0 ? (
+                      <div className="flex items-center justify-center py-10 text-sm text-slate-400">No items yet. Click Add Row to start.</div>
                     ) : (
                       <div className="overflow-x-auto">
-                        <table className="modern-table w-full min-w-[1660px]">
-                          <thead className="border-b border-cyan-100">
+                        <table className={`modern-table w-full ${isAddSensorOn ? 'min-w-[830px]' : 'min-w-[1270px]'}`}>
+                          <thead className="border-b border-slate-200 bg-slate-50">
                             <tr>
-                              <th className="w-[360px] min-w-[360px] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Product</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Stocks</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Solds</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Covers</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Leftovers</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Ordered</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Free</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Total Cost</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Total Revenue</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Total Loss</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Net Income</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Action</th>
+                              <th className="w-[300px] min-w-[300px] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Product</th>
+                              <th className="w-20 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Stocks</th>
+                              <th className="w-20 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Solds</th>
+                              <th className="w-20 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Covers</th>
+                              <th className="w-24 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Leftovers</th>
+                              <th className="w-20 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Ordered</th>
+                              <th className="w-16 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Free</th>
+                              {!isAddSensorOn && <th className="w-28 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Cost</th>}
+                              {!isAddSensorOn && <th className="w-28 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Revenue</th>}
+                              {!isAddSensorOn && <th className="w-28 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Loss</th>}
+                              {!isAddSensorOn && <th className="w-28 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Net</th>}
+                              <th className="w-12 px-3 py-2.5"></th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-cyan-50 bg-white/80">
-                            {paginatedEditFormItems.map((item) => {
-                              const computed = getEditItemComputedValues(item);
+                          <tbody className="divide-y divide-slate-100">
+                            {paginatedAddFormItems.map((item) => {
+                              const computed = getAddItemComputedValues(item);
 
                               return (
                                 <tr key={item.id}>
-                                  <td className="w-[360px] min-w-[360px] px-4 py-4 text-sm text-slate-900">
+                                  <td className="w-[300px] min-w-[300px] px-3 py-3">
                                     <Select<AddOfficePricingOption, false>
-                                      options={editOfficePricingOptions}
-                                      value={editOfficePricingOptions.find((option) => option.value === item.office_pricing_id) ?? null}
-                                      onChange={(selected) => handleEditItemChange(item.id, 'office_pricing_id', selected?.value ?? '')}
-                                      onInputChange={(value, meta) => handleEditProductSearchInputChange(item.id, value, meta)}
+                                      options={addOfficePricingOptions}
+                                      value={addOfficePricingOptions.find((option) => option.value === item.office_pricing_id) ?? null}
+                                      onChange={(selected) => handleItemChange(item.id, 'office_pricing_id', selected?.value ?? '')}
+                                      onInputChange={(value, meta) => handleAddProductSearchInputChange(item.id, value, meta)}
                                       isSearchable
                                       isClearable
                                       menuPlacement="top"
                                       menuPosition="fixed"
                                       menuPortalTarget={document.body}
-                                      placeholder="Select or search product"
+                                      placeholder="Select product"
                                       formatOptionLabel={(option) => (
-                                        <span>{renderHighlightedLabel(option.label, editProductSearchKeyword[item.id] ?? '')}</span>
+                                        <span>{renderHighlightedLabel(option.label, productSearchKeyword[item.id] ?? '')}</span>
                                       )}
                                       noOptionsMessage={() => 'Product not found'}
                                       classNames={getReactSelectClassNames(false, false)}
-                                      styles={{
-                                        menuPortal: (base) => ({
-                                          ...base,
-                                          zIndex: 80,
-                                        }),
-                                      }}
+                                      styles={{ menuPortal: (base) => ({ ...base, zIndex: 80 }) }}
                                     />
                                   </td>
-                                  <td className="px-4 py-4 text-sm text-slate-900">
+                                  <td className="px-3 py-3">
                                     <input
                                       type="text"
                                       inputMode="numeric"
                                       pattern="[0-9]*"
                                       value={item.stocks === 0 ? '' : item.stocks}
-                                      onChange={(e) => handleEditItemChange(item.id, 'stocks', parseNumberInput(e.target.value))}
+                                      onChange={(e) => handleItemChange(item.id, 'stocks', parseNumberInput(e.target.value))}
                                       placeholder="0"
-                                      className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                                      className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-200"
                                     />
                                   </td>
-                                  <td className="px-4 py-4 text-sm text-slate-900">
+                                  <td className="px-3 py-3">
                                     <input
                                       type="text"
                                       inputMode="numeric"
                                       pattern="[0-9]*"
                                       value={item.solds === 0 ? '' : item.solds}
-                                      onChange={(e) => handleEditItemChange(item.id, 'solds', parseNumberInput(e.target.value))}
+                                      onChange={(e) => handleItemChange(item.id, 'solds', parseNumberInput(e.target.value))}
                                       placeholder="0"
-                                      className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                                      className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-200"
                                     />
                                   </td>
-                                  <td className="px-4 py-4 text-sm text-slate-900">
+                                  <td className="px-3 py-3">
                                     <input
                                       type="text"
                                       inputMode="numeric"
                                       pattern="[0-9]*"
                                       value={item.covers === 0 ? '' : item.covers}
-                                      onChange={(e) => handleEditItemChange(item.id, 'covers', parseNumberInput(e.target.value))}
+                                      onChange={(e) => handleItemChange(item.id, 'covers', parseNumberInput(e.target.value))}
                                       placeholder="0"
-                                      className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                                      className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-200"
                                     />
                                   </td>
-                                  <td className="px-4 py-4 text-sm text-slate-900">
+                                  <td className="px-3 py-3">
                                     <input
                                       type="number"
                                       value={item.leftovers}
                                       disabled
-                                      className="w-full cursor-not-allowed rounded border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-600"
+                                      className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm text-slate-500"
                                     />
                                   </td>
-                                  <td className="px-4 py-4 text-sm text-slate-900">
+                                  <td className="px-3 py-3">
                                     <button
                                       type="button"
-                                      onClick={() => handleEditItemChange(item.id, 'is_ordered', !item.is_ordered)}
-                                      className={`inline-flex h-7 w-12 items-center cursor-pointer rounded-full p-1 transition ${
-                                        item.is_ordered ? 'bg-emerald-500' : 'bg-slate-300'
-                                      }`}
+                                      onClick={() => handleItemChange(item.id, 'is_ordered', !item.is_ordered)}
+                                      className={`inline-flex h-6 w-11 cursor-pointer items-center rounded-full p-0.5 transition-colors ${item.is_ordered ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                      role="switch"
+                                      aria-checked={item.is_ordered}
                                     >
-                                      <span
-                                        className={`h-5 w-5 rounded-full bg-white transition ${
-                                          item.is_ordered ? 'translate-x-5' : 'translate-x-0'
-                                        }`}
-                                      />
+                                      <span className={`h-5 w-5 rounded-full bg-white shadow transition-transform ${item.is_ordered ? 'translate-x-5' : 'translate-x-0'}`} />
                                     </button>
                                   </td>
-                                  <td className="px-4 py-4 text-sm text-slate-900">
+                                  <td className="px-3 py-3">
                                     <button
                                       type="button"
-                                      onClick={() => handleEditItemChange(item.id, 'is_free', !item.is_free)}
-                                      className={`inline-flex h-7 w-12 items-center cursor-pointer rounded-full p-1 transition ${
-                                        item.is_free ? 'bg-emerald-500' : 'bg-slate-300'
-                                      }`}
+                                      onClick={() => handleItemChange(item.id, 'is_free', !item.is_free)}
+                                      className={`inline-flex h-6 w-11 cursor-pointer items-center rounded-full p-0.5 transition-colors ${item.is_free ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                      role="switch"
+                                      aria-checked={item.is_free}
                                     >
-                                      <span
-                                        className={`h-5 w-5 rounded-full bg-white transition ${
-                                          item.is_free ? 'translate-x-5' : 'translate-x-0'
-                                        }`}
-                                      />
+                                      <span className={`h-5 w-5 rounded-full bg-white shadow transition-transform ${item.is_free ? 'translate-x-5' : 'translate-x-0'}`} />
                                     </button>
                                   </td>
-                                  <td className="px-4 py-4 text-sm text-slate-900">
-                                    <input
-                                      type="text"
-                                      disabled
-                                      value={formatCurrency(computed.totalCost)}
-                                      className="w-full cursor-not-allowed rounded border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-600"
-                                      style={isEditSensorOn ? { filter: 'blur(4px)' } : undefined}
-                                    />
-                                  </td>
-                                  <td className="px-4 py-4 text-sm text-slate-900">
-                                    <input
-                                      type="text"
-                                      disabled
-                                      value={formatCurrency(computed.totalRevenue)}
-                                      className="w-full cursor-not-allowed rounded border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-600"
-                                      style={isEditSensorOn ? { filter: 'blur(4px)' } : undefined}
-                                    />
-                                  </td>
-                                  <td className="px-4 py-4 text-sm text-slate-900">
-                                    <input
-                                      type="text"
-                                      disabled
-                                      value={formatCurrency(computed.totalLoss)}
-                                      className="w-full cursor-not-allowed rounded border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-600"
-                                      style={isEditSensorOn ? { filter: 'blur(4px)' } : undefined}
-                                    />
-                                  </td>
-                                  <td className="px-4 py-4 text-sm text-slate-900">
-                                    <input
-                                      type="text"
-                                      disabled
-                                      value={formatCurrency(computed.netIncome)}
-                                      className="w-full cursor-not-allowed rounded border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-600"
-                                      style={isEditSensorOn ? { filter: 'blur(4px)' } : undefined}
-                                    />
-                                  </td>
-                                  <td className="px-4 py-4 text-sm text-slate-900">
+                                  {!isAddSensorOn && (
+                                    <td className="px-3 py-3">
+                                      <input type="text" disabled value={formatCurrency(computed.totalCost)} className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm text-slate-500" />
+                                    </td>
+                                  )}
+                                  {!isAddSensorOn && (
+                                    <td className="px-3 py-3">
+                                      <input type="text" disabled value={formatCurrency(computed.totalRevenue)} className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm text-slate-500" />
+                                    </td>
+                                  )}
+                                  {!isAddSensorOn && (
+                                    <td className="px-3 py-3">
+                                      <input type="text" disabled value={formatCurrency(computed.totalLoss)} className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm text-slate-500" />
+                                    </td>
+                                  )}
+                                  {!isAddSensorOn && (
+                                    <td className="px-3 py-3">
+                                      <input type="text" disabled value={formatCurrency(computed.netIncome)} className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm text-slate-500" />
+                                    </td>
+                                  )}
+                                  <td className="px-3 py-3">
                                     <button
                                       type="button"
-                                      onClick={() => handleRemoveEditRow(item.id)}
-                                      className="inline-flex items-center justify-center cursor-pointer rounded p-1 text-rose-600 transition-colors hover:bg-rose-50"
-                                      title="Delete row"
-                                      aria-label="Delete row"
+                                      onClick={() => handleRemoveRow(item.id)}
+                                      className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                                      title="Remove row"
+                                      aria-label="Remove row"
                                     >
-                                      <Trash2 className="h-4 w-4" />
+                                      <Trash2 className="h-3.5 w-3.5" />
                                     </button>
                                   </td>
                                 </tr>
@@ -2355,24 +2040,351 @@ const SalesOffice = () => {
                         </table>
                       </div>
                     )}
-
-                    {editFormItems.length > 0 && (
+                    {addFormItems.length > 0 && (
                       <Pagination
-                        currentPage={editItemsCurrentPage}
-                        totalItems={editFormItems.length}
+                        currentPage={addItemsCurrentPage}
+                        totalItems={addFormItems.length}
                         pageSize={ADD_ITEMS_PAGE_SIZE}
-                        onPageChange={setEditItemsCurrentPage}
+                        onPageChange={setAddItemsCurrentPage}
                       />
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
 
-                <div className="flex gap-3 border-t border-slate-200 pt-6">
+            {/* Footer */}
+            <div className="flex flex-shrink-0 gap-3 border-t border-slate-100 px-5 py-4">
+              <button
+                type="button"
+                onClick={handleCloseAddModal}
+                disabled={isAddSubmitting}
+                className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              >
+                <XCircle className="h-4 w-4" />
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitAddForm}
+                disabled={isAddSubmitting}
+                className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-700 disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" />
+                {isAddSubmitting ? 'Creating…' : 'Create Sales'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-4" style={{ background: 'rgba(0,0,0,0.2)' }}>
+          <div className="flex max-h-[94vh] w-full max-w-[1500px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            {/* Header */}
+            <div className="flex flex-shrink-0 items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Edit Office Sales</h2>
+                <p className="mt-0.5 text-sm text-slate-400">Update existing office sales data and item details.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditSensorOn((prev) => !prev)}
+                  title={isEditSensorOn ? 'Show financials' : 'Hide financials'}
+                  aria-label={isEditSensorOn ? 'Show financials' : 'Hide financials'}
+                  className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    isEditSensorOn
+                      ? 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                      : 'border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100'
+                  }`}
+                >
+                  {isEditSensorOn ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  {isEditSensorOn ? 'Sensor On' : 'Sensor Off'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCloseEditModal}
+                  disabled={isEditSubmitting}
+                  className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600 disabled:opacity-50"
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {isEditLoading ? (
+              <div className="flex flex-1 items-center justify-center py-16 text-sm text-slate-400">Loading sales details…</div>
+            ) : (
+              <>
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto px-5 py-4">
+                  <div className="space-y-5">
+                    {/* Date + Location */}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium text-slate-700">Sales Date</label>
+                        <div className="relative" onClick={() => openDatePicker(editSalesDateRef.current)}>
+                          <input
+                            type="text"
+                            value={editFormData.sales_date ? formatSalesDate(editFormData.sales_date) : ''}
+                            readOnly
+                            placeholder="dddd, dd mmmm yyyy"
+                            className="modern-input w-full cursor-pointer px-3 py-2 text-sm text-slate-800"
+                          />
+                          <input
+                            ref={editSalesDateRef}
+                            type="date"
+                            value={editFormData.sales_date}
+                            onChange={(e) => handleEditSalesDateChange(e.target.value)}
+                            className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium text-slate-700">Selling Location</label>
+                        <Select<LocationSelectOption, false>
+                          options={addLocationOptions}
+                          value={selectedEditLocationOption}
+                          onChange={handleEditLocationSelectChange}
+                          onInputChange={handleEditLocationSearchInputChange}
+                          isSearchable
+                          isClearable
+                          placeholder="Select or search selling location"
+                          formatOptionLabel={(option) => (
+                            <span>{renderHighlightedLabel(option.label, editLocationSearchKeyword)}</span>
+                          )}
+                          noOptionsMessage={() => 'Selling location not found'}
+                          classNames={getReactSelectClassNames(false, false)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Summary stats */}
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Stocks</p>
+                        <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800">{editSummaryTotals.totalStocks}</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Solds</p>
+                        <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800">{editSummaryTotals.totalSolds}</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Leftovers</p>
+                        <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800">{editSummaryTotals.totalLeftovers}</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Covers</p>
+                        <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800">{editSummaryTotals.totalCovers}</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Cost</p>
+                        <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800"><span className={editSensorClass}>{formatCurrency(editSummaryTotals.totalCost)}</span></p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Revenue</p>
+                        <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800"><span className={editSensorClass}>{formatCurrency(editSummaryTotals.totalRevenue)}</span></p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Loss</p>
+                        <p className="mt-1 text-sm font-semibold tabular-nums text-slate-800"><span className={editSensorClass}>{formatCurrency(editSummaryTotals.totalLoss)}</span></p>
+                      </div>
+                      <div className={`rounded-xl border p-3 ${editSummaryTotals.netIncome > 0 ? 'border-emerald-200 bg-emerald-50' : editSummaryTotals.netIncome < 0 ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-slate-50'}`}>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Net Income</p>
+                        <p className={`mt-1 text-sm font-bold tabular-nums ${editSummaryTotals.netIncome > 0 ? 'text-emerald-700' : editSummaryTotals.netIncome < 0 ? 'text-rose-600' : 'text-slate-700'}`}>
+                          <span className={editSensorClass}>{formatCurrency(editSummaryTotals.netIncome)}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Items */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-sm font-semibold text-slate-800">Items</h3>
+                          <p className="mt-0.5 text-xs text-slate-400">Edit mapped items for this office sales record.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleEditRow}
+                          className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 transition-colors hover:bg-cyan-100"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Add Row
+                        </button>
+                      </div>
+
+                      <div className="overflow-hidden rounded-xl border border-slate-200">
+                        {editFormItems.length === 0 ? (
+                          <div className="flex items-center justify-center py-10 text-sm text-slate-400">No items. Click Add Row to start.</div>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className={`modern-table w-full ${isEditSensorOn ? 'min-w-[830px]' : 'min-w-[1270px]'}`}>
+                              <thead className="border-b border-slate-200 bg-slate-50">
+                                <tr>
+                                  <th className="w-[300px] min-w-[300px] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Product</th>
+                                  <th className="w-20 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Stocks</th>
+                                  <th className="w-20 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Solds</th>
+                                  <th className="w-20 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Covers</th>
+                                  <th className="w-24 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Leftovers</th>
+                                  <th className="w-20 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Ordered</th>
+                                  <th className="w-16 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Free</th>
+                                  {!isEditSensorOn && <th className="w-28 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Cost</th>}
+                                  {!isEditSensorOn && <th className="w-28 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Revenue</th>}
+                                  {!isEditSensorOn && <th className="w-28 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Loss</th>}
+                                  {!isEditSensorOn && <th className="w-28 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Net</th>}
+                                  <th className="w-12 px-3 py-2.5"></th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {paginatedEditFormItems.map((item) => {
+                                  const computed = getEditItemComputedValues(item);
+
+                                  return (
+                                    <tr key={item.id}>
+                                      <td className="w-[300px] min-w-[300px] px-3 py-3">
+                                        <Select<AddOfficePricingOption, false>
+                                          options={editOfficePricingOptions}
+                                          value={editOfficePricingOptions.find((option) => option.value === item.office_pricing_id) ?? null}
+                                          onChange={(selected) => handleEditItemChange(item.id, 'office_pricing_id', selected?.value ?? '')}
+                                          onInputChange={(value, meta) => handleEditProductSearchInputChange(item.id, value, meta)}
+                                          isSearchable
+                                          isClearable
+                                          menuPlacement="top"
+                                          menuPosition="fixed"
+                                          menuPortalTarget={document.body}
+                                          placeholder="Select product"
+                                          formatOptionLabel={(option) => (
+                                            <span>{renderHighlightedLabel(option.label, editProductSearchKeyword[item.id] ?? '')}</span>
+                                          )}
+                                          noOptionsMessage={() => 'Product not found'}
+                                          classNames={getReactSelectClassNames(false, false)}
+                                          styles={{ menuPortal: (base) => ({ ...base, zIndex: 80 }) }}
+                                        />
+                                      </td>
+                                      <td className="px-3 py-3">
+                                        <input
+                                          type="text"
+                                          inputMode="numeric"
+                                          pattern="[0-9]*"
+                                          value={item.stocks === 0 ? '' : item.stocks}
+                                          onChange={(e) => handleEditItemChange(item.id, 'stocks', parseNumberInput(e.target.value))}
+                                          placeholder="0"
+                                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-200"
+                                        />
+                                      </td>
+                                      <td className="px-3 py-3">
+                                        <input
+                                          type="text"
+                                          inputMode="numeric"
+                                          pattern="[0-9]*"
+                                          value={item.solds === 0 ? '' : item.solds}
+                                          onChange={(e) => handleEditItemChange(item.id, 'solds', parseNumberInput(e.target.value))}
+                                          placeholder="0"
+                                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-200"
+                                        />
+                                      </td>
+                                      <td className="px-3 py-3">
+                                        <input
+                                          type="text"
+                                          inputMode="numeric"
+                                          pattern="[0-9]*"
+                                          value={item.covers === 0 ? '' : item.covers}
+                                          onChange={(e) => handleEditItemChange(item.id, 'covers', parseNumberInput(e.target.value))}
+                                          placeholder="0"
+                                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-200"
+                                        />
+                                      </td>
+                                      <td className="px-3 py-3">
+                                        <input
+                                          type="number"
+                                          value={item.leftovers}
+                                          disabled
+                                          className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm text-slate-500"
+                                        />
+                                      </td>
+                                      <td className="px-3 py-3">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleEditItemChange(item.id, 'is_ordered', !item.is_ordered)}
+                                          className={`inline-flex h-6 w-11 cursor-pointer items-center rounded-full p-0.5 transition-colors ${item.is_ordered ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                          role="switch"
+                                          aria-checked={item.is_ordered}
+                                        >
+                                          <span className={`h-5 w-5 rounded-full bg-white shadow transition-transform ${item.is_ordered ? 'translate-x-5' : 'translate-x-0'}`} />
+                                        </button>
+                                      </td>
+                                      <td className="px-3 py-3">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleEditItemChange(item.id, 'is_free', !item.is_free)}
+                                          className={`inline-flex h-6 w-11 cursor-pointer items-center rounded-full p-0.5 transition-colors ${item.is_free ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                          role="switch"
+                                          aria-checked={item.is_free}
+                                        >
+                                          <span className={`h-5 w-5 rounded-full bg-white shadow transition-transform ${item.is_free ? 'translate-x-5' : 'translate-x-0'}`} />
+                                        </button>
+                                      </td>
+                                      {!isEditSensorOn && (
+                                        <td className="px-3 py-3">
+                                          <input type="text" disabled value={formatCurrency(computed.totalCost)} className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm text-slate-500" />
+                                        </td>
+                                      )}
+                                      {!isEditSensorOn && (
+                                        <td className="px-3 py-3">
+                                          <input type="text" disabled value={formatCurrency(computed.totalRevenue)} className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm text-slate-500" />
+                                        </td>
+                                      )}
+                                      {!isEditSensorOn && (
+                                        <td className="px-3 py-3">
+                                          <input type="text" disabled value={formatCurrency(computed.totalLoss)} className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm text-slate-500" />
+                                        </td>
+                                      )}
+                                      {!isEditSensorOn && (
+                                        <td className="px-3 py-3">
+                                          <input type="text" disabled value={formatCurrency(computed.netIncome)} className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm text-slate-500" />
+                                        </td>
+                                      )}
+                                      <td className="px-3 py-3">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveEditRow(item.id)}
+                                          className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                                          title="Remove row"
+                                          aria-label="Remove row"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                        {editFormItems.length > 0 && (
+                          <Pagination
+                            currentPage={editItemsCurrentPage}
+                            totalItems={editFormItems.length}
+                            pageSize={ADD_ITEMS_PAGE_SIZE}
+                            onPageChange={setEditItemsCurrentPage}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="flex flex-shrink-0 gap-3 border-t border-slate-100 px-5 py-4">
                   <button
                     type="button"
                     onClick={handleCloseEditModal}
                     disabled={isEditSubmitting}
-                    className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
                   >
                     <XCircle className="h-4 w-4" />
                     Cancel
@@ -2381,56 +2393,57 @@ const SalesOffice = () => {
                     type="button"
                     onClick={handleSubmitEditForm}
                     disabled={isEditSubmitting}
-                    className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-700 disabled:opacity-50"
                   >
                     <Save className="h-4 w-4" />
-                    {isEditSubmitting ? 'Saving...' : 'Save Changes'}
+                    {isEditSubmitting ? 'Saving…' : 'Save Changes'}
                   </button>
                 </div>
-              </div>
+              </>
             )}
           </div>
         </div>
       )}
 
       {reportRecord && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
-          <div className="max-h-[92vh] w-[min(96vw,760px)] overflow-y-auto rounded-2xl border border-cyan-100 bg-white/95 p-5 shadow-2xl sm:p-6">
-            <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-4" style={{ background: 'rgba(0,0,0,0.2)' }}>
+          <div className="flex max-h-[94vh] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            {/* Header */}
+            <div className="flex flex-shrink-0 items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">Report Sales</h2>
-                <p className="mt-1 text-sm text-slate-500">Preview of the sales receipt for office sales data.</p>
+                <h2 className="text-lg font-bold text-slate-900">Sales Report</h2>
+                <p className="mt-0.5 text-sm text-slate-400">Preview receipt before downloading.</p>
               </div>
               <button
                 type="button"
                 onClick={handleCloseReportModal}
-                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100"
-                aria-label="Close sales report modal"
-                title="Close"
+                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600"
+                aria-label="Close"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            {isReportDetailLoading || isReportDetailFetching ? (
-              <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">Loading report data...</div>
-            ) : (
-              <div className="space-y-4">
-                <div id="office-sales-receipt-content" className="rounded-xl border border-slate-300 bg-white p-4 text-slate-900 sm:p-6">
-                  <div className="border-b border-dashed border-slate-300 pb-3">
-                    <h3 className="text-center text-lg font-bold">Penjualan Aneka Kue 339</h3>
-                    <h3 className="text-center text-lg font-bold">{formatReceiptDateTitle(reportRecord.sales_date)}</h3>
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {isReportDetailLoading || isReportDetailFetching ? (
+                <div className="flex items-center justify-center py-12 text-sm text-slate-400">Loading report data…</div>
+              ) : (
+                <div id="office-sales-receipt-content" className="rounded-xl border border-slate-200 bg-white p-5 text-slate-900">
+                  <div className="border-b border-dashed border-slate-300 pb-3 text-center">
+                    <h3 className="text-base font-bold text-slate-900">Penjualan Aneka Kue 339</h3>
+                    <p className="mt-0.5 text-sm font-medium text-slate-600">{formatReceiptDateTitle(reportRecord.sales_date)}</p>
                   </div>
 
                   <div className="mt-4 overflow-x-auto">
                     <table className="w-full border-collapse text-sm">
                       <thead>
-                        <tr className="border-b border-slate-300">
-                          <th className="px-2 py-2 text-left font-semibold">Stok</th>
-                          <th className="px-2 py-2 text-left font-semibold">Produk</th>
-                          <th className="px-2 py-2 text-left font-semibold">Terjual</th>
-                          <th className="px-2 py-2 text-left font-semibold">Perhitungan</th>
-                          <th className="px-2 py-2 text-right font-semibold">Total Harga</th>
+                        <tr className="border-b border-slate-200">
+                          <th className="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Stok</th>
+                          <th className="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Produk</th>
+                          <th className="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Terjual</th>
+                          <th className="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Perhitungan</th>
+                          <th className="py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Total</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2445,11 +2458,11 @@ const SalesOffice = () => {
 
                           return (
                             <tr key={item.id} className="border-b border-slate-100">
-                              <td className="px-2 py-2">{item.stocks}</td>
-                              <td className="px-2 py-2">{item.item_name}</td>
-                              <td className={`px-2 py-2 font-medium ${isSoldOut ? 'text-emerald-600' : 'text-rose-600'}`}>{leftoverText}</td>
-                              <td className="px-2 py-2">{remarks}</td>
-                              <td className="px-2 py-2 text-right">{formatCurrency(item.total_cost)}</td>
+                              <td className="py-2 pr-3 text-sm text-slate-700">{item.stocks}</td>
+                              <td className="py-2 pr-3 text-sm font-medium text-slate-800">{item.item_name}</td>
+                              <td className={`py-2 pr-3 text-sm font-semibold ${isSoldOut ? 'text-emerald-600' : 'text-rose-500'}`}>{leftoverText}</td>
+                              <td className="py-2 pr-3 text-sm text-slate-500">{remarks}</td>
+                              <td className="py-2 text-right text-sm font-medium text-slate-800">{formatCurrency(item.total_cost)}</td>
                             </tr>
                           );
                         })}
@@ -2458,27 +2471,57 @@ const SalesOffice = () => {
                   </div>
 
                   <div className="mt-4 border-t border-dashed border-slate-300 pt-3">
-                    <div className="flex items-center justify-between text-base font-bold">
-                      <span>Total</span>
-                      <span>{formatCurrency(reportReceiptTotalCost)}</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold text-slate-800">Total</span>
+                      <span className="text-base font-bold text-slate-900">{formatCurrency(reportReceiptTotalCost)}</span>
                     </div>
                   </div>
                 </div>
+              )}
+            </div>
 
-                <div className="flex">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void handleDownloadReceipt();
-                    }}
-                    className="cursor-pointer inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700"
-                  >
-                    <Download className="h-4 w-4" />
-                    Download JPG
-                  </button>
-                </div>
+            {/* Footer */}
+            {!isReportDetailLoading && !isReportDetailFetching && (
+              <div className="flex-shrink-0 border-t border-slate-100 px-5 py-4">
+                <button
+                  type="button"
+                  onClick={() => { void handleDownloadReceipt(); }}
+                  className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-700"
+                >
+                  <Download className="h-4 w-4" />
+                  Download JPG
+                </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => { confirmDialog.onCancel(); closeConfirm(); }}
+          />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="mb-2 text-base font-semibold text-slate-800">Confirm</h3>
+            <p className="mb-6 text-sm text-slate-600">{confirmDialog.message}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => { confirmDialog.onCancel(); closeConfirm(); }}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => { confirmDialog.onConfirm(); closeConfirm(); }}
+                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+              >
+                Confirm
+              </button>
+            </div>
           </div>
         </div>
       )}
