@@ -233,8 +233,8 @@ const SalesOrder = () => {
   const [pastOrdersCurrentPage, setPastOrdersCurrentPage] = useState(1);
   const [searchInput, setSearchInput] = useState('');
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [sortField, setSortField] = useState<SortField>('delivery_datetime');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const sortField: SortField = 'delivery_datetime';
+  const sortDirection: SortDirection = 'desc';
   const [isPastOrdersOpen, setIsPastOrdersOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>('add');
@@ -741,26 +741,6 @@ const SalesOrder = () => {
     }
   };
 
-  const handleSort = (field: SortField) => {
-    setOngoingCurrentPage(1);
-    setPastOrdersCurrentPage(1);
-    if (field === sortField) {
-      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-      return;
-    }
-
-    setSortField(field);
-    setSortDirection('asc');
-  };
-
-  const getSortIndicator = (field: SortField) => {
-    if (field !== sortField) {
-      return '\u2195';
-    }
-
-    return sortDirection === 'asc' ? '\u2191' : '\u2193';
-  };
-
   useEffect(() => {
     const loadCurrentUserDisplayName = async () => {
       const { data } = await supabase.auth.getUser();
@@ -872,7 +852,7 @@ const SalesOrder = () => {
           count: 'exact',
         })
         .or('is_paid.eq.false,is_delivered.eq.false,is_paid.is.null,is_delivered.is.null')
-        .order(sortField, { ascending: sortDirection === 'asc', nullsFirst: false })
+        .order(sortField, { ascending: false, nullsFirst: false })
         .order('id', { ascending: false });
 
       if (searchKeyword) {
@@ -911,7 +891,7 @@ const SalesOrder = () => {
         })
         .eq('is_paid', true)
         .eq('is_delivered', true)
-        .order(sortField, { ascending: sortDirection === 'asc', nullsFirst: false })
+        .order(sortField, { ascending: false, nullsFirst: false })
         .order('id', { ascending: false });
 
       if (searchKeyword) {
