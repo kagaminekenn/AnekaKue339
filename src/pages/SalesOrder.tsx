@@ -1062,6 +1062,11 @@ const SalesOrder = () => {
     staleTime: 1000 * 60 * 5,
   });
 
+  const reportCostDetailRecords = useMemo(
+    () => (reportDetailRecords ?? []).filter((item) => !item.item_name.toLowerCase().includes('cookies')),
+    [reportDetailRecords],
+  );
+
   const ongoingRecords = orderSalesData?.records ?? [];
   const pastOrderRecords = pastOrdersData?.records ?? [];
   const loyalCustomers = loyalCustomersData ?? [];
@@ -2657,7 +2662,7 @@ const SalesOrder = () => {
                                 </tr>
                               </thead>
                               <tbody>
-                                {(reportDetailRecords ?? []).map((item) => (
+                                {reportCostDetailRecords.map((item) => (
                                   <tr key={item.id} className="border-b border-slate-100">
                                     <td className="px-2 py-2">{item.item_name}</td>
                                     <td className="px-2 py-2 text-center">{item.quantity}</td>
@@ -2675,7 +2680,7 @@ const SalesOrder = () => {
                             <span>Total Biaya:</span>
                             <span>
                               {formatCurrency(
-                                (reportDetailRecords ?? []).reduce((sum, item) => sum + item.total_cost, 0)
+                                reportCostDetailRecords.reduce((sum, item) => sum + item.total_cost, 0)
                               )}
                             </span>
                           </div>
