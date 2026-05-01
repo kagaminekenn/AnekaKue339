@@ -45,15 +45,12 @@ def _normalize_chat_target(raw_value: str) -> int | str:
     if not value:
         raise RuntimeError("TELEGRAM_CHAT_ID is empty after trimming quotes/spaces")
 
-    # Numeric chat IDs are common for users/groups/channels.
     if value.lstrip("-").isdigit():
         return int(value)
 
-    # Allow @username style as fallback.
     if value.startswith("@"):
         return value
 
-    # If user typed channel username without '@', normalize it.
     if " " not in value:
         return f"@{value}"
 
@@ -155,7 +152,7 @@ def fetch_reminders_map(order_ids: list[int]) -> dict[int, dict]:
 
 
 def ensure_reminders_exist(order_ids: list[int], reminders_map: dict[int, dict]) -> dict[int, dict]:
-    """Initialize missing reminder rows with both flags=True to match new flow."""
+    """Initialize missing reminder rows with both flags=False so reminders are sent on first run."""
     missing_ids = [order_id for order_id in order_ids if order_id not in reminders_map]
     if not missing_ids:
         return reminders_map
@@ -163,8 +160,8 @@ def ensure_reminders_exist(order_ids: list[int], reminders_map: dict[int, dict])
     payload = [
         {
             "order_sales_id": order_id,
-            "is_reminded_tomorrow": True,
-            "is_reminded_today": True,
+            "is_reminded_tomorrow": False,  # FIX: default False agar reminder terkirim saat pertama kali
+            "is_reminded_today": False,     # FIX: default False agar reminder terkirim saat pertama kali
         }
         for order_id in missing_ids
     ]
@@ -179,7 +176,7 @@ def ensure_reminders_exist(order_ids: list[int], reminders_map: dict[int, dict])
         reminders_map[int(row["order_sales_id"])] = row
 
     print(
-        "ℹ️ Initialized reminder rows (default true/true) for order IDs:",
+        "ℹ️ Initialized reminder rows (default false/false) for order IDs:",
         ", ".join(str(order_id) for order_id in missing_ids),
     )
     return reminders_map
