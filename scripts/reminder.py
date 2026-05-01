@@ -233,23 +233,6 @@ def build_message(order: dict, items: list[dict]) -> str:
     return msg
 
 
-def should_send_today_reminder(delivery_dt_str: str) -> bool:
-    """Send 'today' reminder only on the H-6 hourly window.
-
-    With an hourly scheduler, exact equality to 6 hours is too strict, so we
-    treat H-6 as the window where remaining time is in (5h, 6h].
-    """
-    business_tz = _get_business_tz()
-    now_local = datetime.now(business_tz)
-    delivery_local = datetime.fromisoformat(delivery_dt_str.replace("Z", "+00:00")).astimezone(business_tz)
-
-    if delivery_local.date() != now_local.date():
-        return False
-
-    diff = delivery_local - now_local
-    return timedelta(hours=5) < diff <= timedelta(hours=6)
-
-
 async def run():
     bot = Bot(token=TELEGRAM_TOKEN)
     target_chat = _normalize_chat_target(TELEGRAM_CHAT_ID)
@@ -271,11 +254,11 @@ async def run():
     tomorrow_start, tomorrow_end = tomorrow_window_utc()
     today_start, today_end = today_window_utc()
 
+    # H-1 reminder: any delivery whose local date is tomorrow.
     tomorrow_orders = fetch_orders_in_window(tomorrow_start, tomorrow_end)
-    today_orders_all = fetch_orders_in_window(today_start, today_end)
-    today_orders = [
-        order for order in today_orders_all if should_send_today_reminder(str(order["delivery_datetime"]))
-    ]
+    # H-0 reminder: any delivery whose local date is today.
+    # Time is intentionally ignored; date window does the filtering.
+    today_orders = fetch_orders_in_window(today_start, today_end)
 
     all_orders = tomorrow_orders + today_orders
     order_ids = sorted({int(order["id"]) for order in all_orders})
