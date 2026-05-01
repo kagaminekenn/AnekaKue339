@@ -382,7 +382,7 @@ const Home = () => {
               {visibleTodayRecords.length === 0 ? (
                 <div className="rounded-xl border border-cyan-100 bg-white p-6 text-sm text-slate-600">No deliveries scheduled for today.</div>
               ) : (
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className={`grid grid-cols-1 gap-3 ${visibleTodayRecords.length >= 2 ? 'md:grid-cols-2' : ''}`}>
                   {visibleTodayRecords.map((record) => renderDeliveryCard(record, 'today'))}
                 </div>
               )}

@@ -50,7 +50,7 @@ const Pagination = ({
   const visiblePages = getVisiblePages();
 
   return (
-    <div className="flex flex-col gap-3 border-t border-cyan-100 bg-gradient-to-r from-slate-50 to-cyan-50/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm text-slate-600">
         Page {currentPage} of {totalPages}
       </p>
@@ -60,11 +60,11 @@ const Pagination = ({
           onClick={goToPrevious}
           disabled={currentPage === 1}
           aria-label="Go to previous page"
-          className="cursor-pointer rounded-lg border border-cyan-200 bg-white p-2 text-cyan-800 transition-colors hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <div className="flex items-center gap-1">
+        <div className="hidden items-center gap-1 sm:flex">
           {visiblePages.map((page, index) => {
             if (page === '...') {
               return (
@@ -82,10 +82,10 @@ const Pagination = ({
                 type="button"
                 onClick={() => onPageChange(page)}
                 aria-label={`Go to page ${page}`}
-                className={`min-w-8 cursor-pointer rounded-lg border px-2 py-1.5 text-sm transition-colors ${
+                className={`min-w-8 rounded-lg border px-2 py-1.5 text-sm transition-colors ${
                   isActive
-                    ? 'border-cyan-700 bg-cyan-700 text-white'
-                    : 'border-cyan-200 bg-white text-slate-700 hover:bg-cyan-50'
+                    ? 'border-cyan-600 bg-cyan-600 text-white'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                 }`}
               >
                 {page}
@@ -93,12 +93,15 @@ const Pagination = ({
             );
           })}
         </div>
+        <span className="min-w-[3.5rem] text-center text-sm font-medium text-slate-600 sm:hidden">
+          {currentPage} / {totalPages}
+        </span>
         <button
           type="button"
           onClick={goToNext}
           disabled={currentPage === totalPages}
           aria-label="Go to next page"
-          className="cursor-pointer rounded-lg border border-cyan-200 bg-white p-2 text-cyan-800 transition-colors hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <ChevronRight className="h-4 w-4" />
         </button>

@@ -2,9 +2,7 @@ name: Delivery Reminder Bot
 
 on:
   schedule:
-    # Runs every hour at :00 between 04:00 and 23:00 Asia/Jakarta (UTC+7).
-    # GitHub Actions cron uses UTC, so this maps to 21:00-23:00 and 00:00-16:00 UTC.
-    - cron: "0 21-23,0-16 * * *"
+    - cron: "0 22,0,2,4,6,8,10,12,14 * * *"
   workflow_dispatch: # allows manual trigger from GitHub UI
 
 jobs:

@@ -31,6 +31,7 @@ export interface OfficeSalesRecord {
   total_stocks: number;
   total_solds: number;
   total_leftovers: number;
+  total_covers: number;
   total_cost: number;
   total_revenue: number;
   total_loss: number | null;
