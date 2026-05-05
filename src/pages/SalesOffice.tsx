@@ -28,6 +28,7 @@ import type {
 import type { LocationSelectOption } from '../types/officePricing';
 
 const OFFICE_SALES_CARD_PAGE_SIZE = 6;
+const WISMA_GKBI_LOCATION = 'Wisma GKBI';
 
 const CalendarTriggerButton = forwardRef<HTMLButtonElement, { onClick?: () => void }>(({ onClick }, ref) => (
   <button
@@ -700,6 +701,10 @@ const SalesOffice = () => {
 
   const handleCloseReportModal = () => {
     setReportRecord(null);
+  };
+
+  const handleOpenReportModal = (record: OfficeSalesRecord) => {
+    setReportRecord(record);
   };
 
   const handleOpenAddModal = () => {
@@ -1409,6 +1414,8 @@ const SalesOffice = () => {
   const TALAM_ONGOL_NAMES = new Set(['Talam Ketan Aren', 'Talam Ketan Pandan', 'Talam Pandan Aren', 'Ongol-Ongol']);
 
   const reportReceiptItems = useMemo(() => {
+    const isWismaGkbiReport = reportRecord?.selling_location === WISMA_GKBI_LOCATION;
+
     const receiptMap = new Map<
       string,
       {
@@ -1420,7 +1427,7 @@ const SalesOffice = () => {
         covers: number;
         calculation_quantity: number;
         total_cost: number;
-        item_base_prices: number[];
+        item_price_values: number[];
       }
     >();
 
@@ -1437,7 +1444,9 @@ const SalesOffice = () => {
 
       const mappedName = TALAM_ONGOL_NAMES.has(item.item_name) ? 'Talam Ongol' : item.item_name;
       const current = receiptMap.get(mappedName);
-      const calculationQuantity = item.is_ordered ? item.stocks : item.solds + item.covers;
+      const calculationQuantity = isWismaGkbiReport ? item.solds : item.is_ordered ? item.stocks : item.solds + item.covers;
+      const itemPrice = isWismaGkbiReport ? item.pricing_selling_price : item.item_base_price;
+      const calculatedTotal = calculationQuantity * itemPrice;
 
       if (!current) {
         receiptMap.set(mappedName, {
@@ -1448,8 +1457,8 @@ const SalesOffice = () => {
           leftovers: item.leftovers ?? 0,
           covers: item.covers ?? 0,
           calculation_quantity: calculationQuantity,
-          total_cost: item.total_cost,
-          item_base_prices: [item.item_base_price],
+          total_cost: calculatedTotal,
+          item_price_values: [itemPrice],
         });
         return;
       }
@@ -1459,17 +1468,19 @@ const SalesOffice = () => {
       current.leftovers += item.leftovers ?? 0;
       current.covers += item.covers ?? 0;
       current.calculation_quantity += calculationQuantity;
-      current.total_cost += item.total_cost;
-      current.item_base_prices.push(item.item_base_price);
+      current.total_cost += calculatedTotal;
+      current.item_price_values.push(itemPrice);
     });
 
     return Array.from(receiptMap.values());
-  }, [reportDetailRecords]);
+  }, [reportDetailRecords, reportRecord]);
 
   const reportReceiptTotalCost = useMemo(
     () => reportReceiptItems.reduce((sum, item) => sum + item.total_cost, 0),
     [reportReceiptItems],
   );
+
+  const isWismaGkbiReport = reportRecord?.selling_location === WISMA_GKBI_LOCATION;
 
   const globalReportReceiptItems = useMemo(() => {
     const REPORT_EXCLUDED_KEYWORDS = ['Cookies', 'Ubi', 'Telur'];
@@ -1612,7 +1623,7 @@ const SalesOffice = () => {
               className="flex cursor-pointer items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 transition-colors hover:bg-violet-100"
             >
               <FileText className="h-4 w-4" />
-              Generate Report
+              Report
             </button>
             <button
               type="button"
@@ -1724,6 +1735,16 @@ const SalesOffice = () => {
                     <Pencil className="h-3.5 w-3.5" />
                     Edit
                   </button>
+                  {record.selling_location === WISMA_GKBI_LOCATION && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenReportModal(record)}
+                      aria-label={`Generate report for ${record.selling_location}`}
+                      className="inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-violet-200 py-1.5 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-50"
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -2635,40 +2656,42 @@ const SalesOffice = () => {
               {isReportDetailLoading || isReportDetailFetching ? (
                 <div className="flex items-center justify-center py-12 text-sm text-slate-400">Loading report data…</div>
               ) : (
-                <div id="office-sales-receipt-content" className="rounded-xl border border-slate-200 bg-white p-5 text-slate-900">
-                  <div className="border-b border-dashed border-slate-300 pb-3 text-center">
+                <div id="office-sales-receipt-content" className="rounded-xl border border-slate-200 bg-white p-4 text-slate-900">
+                  <div className="border-b border-dashed border-slate-300 pb-2.5 text-center">
                     <h3 className="text-base font-bold text-slate-900">Penjualan Aneka Kue 339</h3>
                     <p className="mt-0.5 text-sm font-medium text-slate-600">{formatReceiptDateTitle(reportRecord.sales_date)}</p>
                   </div>
 
-                  <div className="mt-4 overflow-x-auto">
+                  <div className="mt-3 overflow-x-auto">
                     <table className="w-full border-collapse text-sm">
                       <thead>
                         <tr className="border-b border-slate-200">
-                          <th className="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Stok</th>
-                          <th className="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Produk</th>
-                          <th className="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Terjual</th>
-                          <th className="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Perhitungan</th>
-                          <th className="py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Total</th>
+                          <th className="py-1.5 pr-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Stok</th>
+                          <th className="py-1.5 pr-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Produk</th>
+                          <th className="py-1.5 pr-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Terjual</th>
+                          <th className="py-1.5 pr-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Perhitungan</th>
+                          <th className="py-1.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Total</th>
                         </tr>
                       </thead>
                       <tbody>
                         {reportReceiptItems.map((item) => {
-                          const leftovers = item.leftovers ?? 0;
-                          const isSoldOut = leftovers <= 0;
-                          const leftoverText = leftovers > 0 ? `(sisa ${leftovers})` : '(habis)';
-                          const uniqueBasePrices = Array.from(new Set(item.item_base_prices));
-                          const remarks = uniqueBasePrices.length === 1
-                            ? `${item.calculation_quantity} x ${new Intl.NumberFormat('id-ID').format(uniqueBasePrices[0] ?? 0)}`
+                          const displayLeftovers = isWismaGkbiReport ? item.stocks - item.solds : item.leftovers ?? 0;
+                          const isSoldOut = displayLeftovers <= 0;
+                          const leftoverText = displayLeftovers > 0 ? `(sisa ${displayLeftovers})` : '(habis)';
+                          const uniquePrices = Array.from(new Set(item.item_price_values));
+                          const remarks = uniquePrices.length === 1
+                            ? `${item.calculation_quantity} x ${new Intl.NumberFormat('id-ID').format(uniquePrices[0] ?? 0)}`
                             : `${item.calculation_quantity} x campuran`;
 
                           return (
                             <tr key={item.id} className="border-b border-slate-100">
-                              <td className="py-2 pr-3 text-sm text-slate-700">{item.stocks}</td>
-                              <td className="py-2 pr-3 text-sm font-medium text-slate-800">{item.item_name}</td>
-                              <td className={`py-2 pr-3 text-sm font-semibold ${isSoldOut ? 'text-emerald-600' : 'text-rose-500'}`}>{leftoverText}</td>
-                              <td className="py-2 pr-3 text-sm text-slate-500">{remarks}</td>
-                              <td className="py-2 text-right text-sm font-medium text-slate-800">{formatCurrency(item.total_cost)}</td>
+                              <td className="py-1.5 pr-2 text-sm text-slate-700">{item.stocks}</td>
+                              <td className="py-1.5 pr-2 text-sm font-medium text-slate-800">{item.item_name}</td>
+                              <td className={`py-1.5 pr-2 text-sm font-semibold ${isSoldOut ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                {leftoverText}
+                              </td>
+                              <td className="py-1.5 pr-2 text-sm text-slate-500">{remarks}</td>
+                              <td className="py-1.5 text-right text-sm font-medium text-slate-800">{formatCurrency(item.total_cost)}</td>
                             </tr>
                           );
                         })}
@@ -2676,7 +2699,7 @@ const SalesOffice = () => {
                     </table>
                   </div>
 
-                  <div className="mt-4 border-t border-dashed border-slate-300 pt-3">
+                  <div className="mt-3 border-t border-dashed border-slate-300 pt-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-bold text-slate-800">Total</span>
                       <span className="text-base font-bold text-slate-900">{formatCurrency(reportReceiptTotalCost)}</span>
@@ -2756,22 +2779,22 @@ const SalesOffice = () => {
               ) : (globalReportSalesRecords ?? []).length === 0 ? (
                 <div className="flex items-center justify-center py-12 text-sm text-slate-400">No sales data found for this date.</div>
               ) : (
-                <div id="global-sales-receipt-content" className="rounded-xl border border-slate-200 bg-white p-5 text-slate-900">
+                <div id="global-sales-receipt-content" className="rounded-xl border border-slate-200 bg-white p-4 text-slate-900">
                   {/* Receipt header */}
-                  <div className="border-b border-dashed border-slate-300 pb-3 text-center">
+                  <div className="border-b border-dashed border-slate-300 pb-2.5 text-center">
                     <h3 className="text-base font-bold text-slate-900">Penjualan Aneka Kue 339</h3>
                     <p className="mt-0.5 text-sm font-medium text-slate-600">{formatReceiptDateTitle(globalReportDate)}</p>
                   </div>
 
-                  <div className="mt-4 overflow-x-auto">
+                  <div className="mt-3 overflow-x-auto">
                     <table className="w-full border-collapse text-sm">
                       <thead>
                         <tr className="border-b border-slate-200">
-                          <th className="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Stok</th>
-                          <th className="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Produk</th>
-                          <th className="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Terjual</th>
-                          <th className="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Perhitungan</th>
-                          <th className="py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Total</th>
+                          <th className="py-1.5 pr-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Stok</th>
+                          <th className="py-1.5 pr-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Produk</th>
+                          <th className="py-1.5 pr-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Terjual</th>
+                          <th className="py-1.5 pr-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Perhitungan</th>
+                          <th className="py-1.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Total</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2786,11 +2809,11 @@ const SalesOffice = () => {
 
                           return (
                             <tr key={item.id} className="border-b border-slate-100">
-                              <td className="py-2 pr-3 text-sm text-slate-700">{item.stocks}</td>
-                              <td className="py-2 pr-3 text-sm font-medium text-slate-800">{item.item_name}</td>
-                              <td className={`py-2 pr-3 text-sm font-semibold ${isSoldOut ? 'text-emerald-600' : 'text-rose-500'}`}>{leftoverText}</td>
-                              <td className="py-2 pr-3 text-sm text-slate-500">{remarks}</td>
-                              <td className="py-2 text-right text-sm font-medium text-slate-800">{formatCurrency(item.total_cost)}</td>
+                              <td className="py-1.5 pr-2 text-sm text-slate-700">{item.stocks}</td>
+                              <td className="py-1.5 pr-2 text-sm font-medium text-slate-800">{item.item_name}</td>
+                              <td className={`py-1.5 pr-2 text-sm font-semibold ${isSoldOut ? 'text-emerald-600' : 'text-rose-500'}`}>{leftoverText}</td>
+                              <td className="py-1.5 pr-2 text-sm text-slate-500">{remarks}</td>
+                              <td className="py-1.5 text-right text-sm font-medium text-slate-800">{formatCurrency(item.total_cost)}</td>
                             </tr>
                           );
                         })}
@@ -2798,7 +2821,7 @@ const SalesOffice = () => {
                     </table>
                   </div>
 
-                  <div className="mt-4 border-t border-dashed border-slate-300 pt-3">
+                  <div className="mt-3 border-t border-dashed border-slate-300 pt-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-bold text-slate-800">Total</span>
                       <span className="text-base font-bold text-slate-900">{formatCurrency(globalReportGrandTotal)}</span>
