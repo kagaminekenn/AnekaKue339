@@ -698,10 +698,6 @@ const SalesOffice = () => {
     setDetailCurrentPage(1);
   };
 
-  const handleOpenReportModal = (record: OfficeSalesRecord) => {
-    setReportRecord(record);
-  };
-
   const handleCloseReportModal = () => {
     setReportRecord(null);
   };
