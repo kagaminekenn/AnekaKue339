@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
-import { CircleCheck, CircleX, Download, Eye, EyeOff, FileText, MapPin, Minus, Pencil, Plus, Save, TrendingDown, TrendingUp, X, XCircle, Trash2 } from 'lucide-react';
+import { CircleCheck, CircleX, Download, Eye, EyeOff, FileText, MapPin, Minus, Pencil, Plus, Save, TrendingDown, TrendingUp, X, XCircle, Trash2, Calendar } from 'lucide-react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import Select, { type InputActionMeta, type SingleValue } from 'react-select';
 import Pagination from '../components/Pagination';
 import { SELLING_LOCATIONS } from '../constants/main';
@@ -26,6 +28,20 @@ import type {
 import type { LocationSelectOption } from '../types/officePricing';
 
 const OFFICE_SALES_CARD_PAGE_SIZE = 6;
+
+const CalendarTriggerButton = forwardRef<HTMLButtonElement, { onClick?: () => void }>(({ onClick }, ref) => (
+  <button
+    ref={ref}
+    type="button"
+    onClick={onClick}
+    className="ml-1.5 inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-200 p-1.5 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600"
+    aria-label="Open date picker"
+  >
+    <Calendar className="h-4 w-4" />
+  </button>
+));
+
+CalendarTriggerButton.displayName = 'CalendarTriggerButton';
 
 const SalesOffice = () => {
   const defaultLocationFilter = SELLING_LOCATIONS[0] ?? '';
@@ -77,6 +93,9 @@ const SalesOffice = () => {
   const addSalesDateRef = useRef<HTMLInputElement | null>(null);
   const editSalesDateRef = useRef<HTMLInputElement | null>(null);
 
+  const [isGlobalReportModalOpen, setIsGlobalReportModalOpen] = useState(false);
+  const [globalReportDate, setGlobalReportDate] = useState(defaultSalesDate);
+
   const queryClient = useQueryClient();
 
   const openDatePicker = (input: HTMLInputElement | null) => {
@@ -107,6 +126,27 @@ const SalesOffice = () => {
       month: 'long',
       year: 'numeric',
     }).format(date);
+  };
+
+  const parseDateInputValue = (dateString: string | null | undefined) => {
+    if (!dateString) {
+      return null;
+    }
+
+    const date = new Date(`${dateString}T00:00:00`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  const toDateInputValue = (date: Date | null) => {
+    if (!date) {
+      return '';
+    }
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
   };
 
   useEffect(() => {
@@ -241,6 +281,77 @@ const SalesOffice = () => {
       return (await response.json()) as OfficeSalesDetailRecord[];
     },
     enabled: reportRecord !== null,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const {
+    data: globalReportSalesRecords,
+    isLoading: isGlobalReportSalesLoading,
+    isFetching: isGlobalReportSalesFetching,
+  } = useQuery<OfficeSalesRecord[]>({
+    queryKey: ['global-report-sales', globalReportDate],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        select: '*',
+        sales_date: `eq.${globalReportDate}`,
+        order: 'selling_location.asc',
+      });
+
+      const response = await fetch(`${OFFICE_SALES_API_URL}?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch global report sales: ${response.status} ${response.statusText}`);
+      }
+
+      return (await response.json()) as OfficeSalesRecord[];
+    },
+    enabled: isGlobalReportModalOpen && !!globalReportDate,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const globalReportSalesIds = useMemo(
+    () => (globalReportSalesRecords ?? []).map((r) => r.id),
+    [globalReportSalesRecords],
+  );
+
+  const {
+    data: globalReportDetailRecords,
+    isLoading: isGlobalReportDetailLoading,
+    isFetching: isGlobalReportDetailFetching,
+  } = useQuery<OfficeSalesDetailRecord[]>({
+    queryKey: ['global-report-detail', globalReportSalesIds],
+    queryFn: async () => {
+      if (globalReportSalesIds.length === 0) {
+        return [];
+      }
+
+      const params = new URLSearchParams({
+        select: '*',
+        office_sales_id: `in.(${globalReportSalesIds.join(',')})`,
+        order: 'item_name.asc',
+      });
+
+      const response = await fetch(`${OFFICE_SALES_DETAIL_API_URL}?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch global report detail: ${response.status} ${response.statusText}`);
+      }
+
+      return (await response.json()) as OfficeSalesDetailRecord[];
+    },
+    enabled: isGlobalReportModalOpen && globalReportSalesIds.length > 0,
     staleTime: 1000 * 60 * 5,
   });
 
@@ -1202,6 +1313,11 @@ const SalesOffice = () => {
 
       if (reportRecord) {
         handleCloseReportModal();
+        return;
+      }
+
+      if (isGlobalReportModalOpen) {
+        handleCloseGlobalReportModal();
       }
     };
 
@@ -1209,7 +1325,7 @@ const SalesOffice = () => {
     return () => {
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [isAddModalOpen, isEditModalOpen, selectedRecord, reportRecord]);
+  }, [isAddModalOpen, isEditModalOpen, selectedRecord, reportRecord, isGlobalReportModalOpen]);
 
   const formatReceiptDateTitle = (salesDate: string) => {
     const date = new Date(`${salesDate}T00:00:00`);
@@ -1267,6 +1383,33 @@ const SalesOffice = () => {
   const addSensorClass = isAddSensorOn ? 'select-none blur-sm' : '';
   const editSensorClass = isEditSensorOn ? 'select-none blur-sm' : '';
 
+  const handleOpenGlobalReportModal = () => {
+    setIsGlobalReportModalOpen(true);
+  };
+
+  const handleCloseGlobalReportModal = () => {
+    setIsGlobalReportModalOpen(false);
+  };
+
+  const handleGlobalReportDateChange = (date: Date | null) => {
+    setGlobalReportDate(toDateInputValue(date));
+  };
+
+  const handleDownloadGlobalReceipt = async () => {
+    try {
+      await waitForNextPaint();
+
+      await downloadElementAsJpg({
+        elementId: 'global-sales-receipt-content',
+        fileName: `${globalReportDate.replace(/-/g, '_')}.jpg`,
+        minWidth: 920,
+        quality: 0.9,
+      });
+    } catch (error) {
+      alert(`Gagal mengunduh struk: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   const TALAM_ONGOL_NAMES = new Set(['Talam Ketan Aren', 'Talam Ketan Pandan', 'Talam Pandan Aren', 'Ongol-Ongol']);
 
   const reportReceiptItems = useMemo(() => {
@@ -1279,6 +1422,7 @@ const SalesOffice = () => {
         solds: number;
         leftovers: number;
         covers: number;
+        calculation_quantity: number;
         total_cost: number;
         item_base_prices: number[];
       }
@@ -1297,6 +1441,7 @@ const SalesOffice = () => {
 
       const mappedName = TALAM_ONGOL_NAMES.has(item.item_name) ? 'Talam Ongol' : item.item_name;
       const current = receiptMap.get(mappedName);
+      const calculationQuantity = item.is_ordered ? item.stocks : item.solds + item.covers;
 
       if (!current) {
         receiptMap.set(mappedName, {
@@ -1306,6 +1451,7 @@ const SalesOffice = () => {
           solds: item.solds,
           leftovers: item.leftovers ?? 0,
           covers: item.covers ?? 0,
+          calculation_quantity: calculationQuantity,
           total_cost: item.total_cost,
           item_base_prices: [item.item_base_price],
         });
@@ -1316,6 +1462,7 @@ const SalesOffice = () => {
       current.solds += item.solds;
       current.leftovers += item.leftovers ?? 0;
       current.covers += item.covers ?? 0;
+      current.calculation_quantity += calculationQuantity;
       current.total_cost += item.total_cost;
       current.item_base_prices.push(item.item_base_price);
     });
@@ -1326,6 +1473,69 @@ const SalesOffice = () => {
   const reportReceiptTotalCost = useMemo(
     () => reportReceiptItems.reduce((sum, item) => sum + item.total_cost, 0),
     [reportReceiptItems],
+  );
+
+  const globalReportReceiptItems = useMemo(() => {
+    const REPORT_EXCLUDED_KEYWORDS = ['Cookies', 'Ubi', 'Telur'];
+
+    const itemMap = new Map<
+      string,
+      {
+        id: string;
+        item_name: string;
+        stocks: number;
+        solds: number;
+        leftovers: number;
+        covers: number;
+        calculation_quantity: number;
+        total_cost: number;
+        item_base_prices: number[];
+      }
+    >();
+
+    (globalReportDetailRecords ?? []).forEach((item) => {
+      if (item.is_free) {
+        return;
+      }
+
+      if (REPORT_EXCLUDED_KEYWORDS.some((keyword) => item.item_name.includes(keyword))) {
+        return;
+      }
+
+      const mappedName = TALAM_ONGOL_NAMES.has(item.item_name) ? 'Talam Ongol' : item.item_name;
+      const current = itemMap.get(mappedName);
+      const calculationQuantity = item.is_ordered ? item.stocks : item.solds + item.covers;
+
+      if (!current) {
+        itemMap.set(mappedName, {
+          id: mappedName,
+          item_name: mappedName,
+          stocks: item.stocks,
+          solds: item.solds,
+          leftovers: item.leftovers ?? 0,
+          covers: item.covers ?? 0,
+          calculation_quantity: calculationQuantity,
+          total_cost: item.total_cost,
+          item_base_prices: [item.item_base_price],
+        });
+        return;
+      }
+
+      current.stocks += item.stocks;
+      current.solds += item.solds;
+      current.leftovers += item.leftovers ?? 0;
+      current.covers += item.covers ?? 0;
+      current.calculation_quantity += calculationQuantity;
+      current.total_cost += item.total_cost;
+      current.item_base_prices.push(item.item_base_price);
+    });
+
+    return Array.from(itemMap.values());
+  }, [globalReportDetailRecords]);
+
+  const globalReportGrandTotal = useMemo(
+    () => globalReportReceiptItems.reduce((sum, item) => sum + item.total_cost, 0),
+    [globalReportReceiptItems],
   );
 
   return (
@@ -1400,6 +1610,14 @@ const SalesOffice = () => {
                 );
               })}
             </div>
+            <button
+              type="button"
+              onClick={handleOpenGlobalReportModal}
+              className="flex cursor-pointer items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 transition-colors hover:bg-violet-100"
+            >
+              <FileText className="h-4 w-4" />
+              Generate Report
+            </button>
             <button
               type="button"
               onClick={handleOpenAddModal}
@@ -1509,14 +1727,6 @@ const SalesOffice = () => {
                   >
                     <Pencil className="h-3.5 w-3.5" />
                     Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenReportModal(record)}
-                    aria-label={`Report for ${record.selling_location}`}
-                    className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-violet-200 px-3 py-1.5 text-violet-600 transition-colors hover:bg-violet-50"
-                  >
-                    <FileText className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
@@ -2453,8 +2663,8 @@ const SalesOffice = () => {
                           const leftoverText = leftovers > 0 ? `(sisa ${leftovers})` : '(habis)';
                           const uniqueBasePrices = Array.from(new Set(item.item_base_prices));
                           const remarks = uniqueBasePrices.length === 1
-                            ? `${item.solds+item.covers} x ${new Intl.NumberFormat('id-ID').format(uniqueBasePrices[0] ?? 0)}`
-                            : `${item.solds+item.covers} x campuran`;
+                            ? `${item.calculation_quantity} x ${new Intl.NumberFormat('id-ID').format(uniqueBasePrices[0] ?? 0)}`
+                            : `${item.calculation_quantity} x campuran`;
 
                           return (
                             <tr key={item.id} className="border-b border-slate-100">
@@ -2486,6 +2696,128 @@ const SalesOffice = () => {
                 <button
                   type="button"
                   onClick={() => { void handleDownloadReceipt(); }}
+                  className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-700"
+                >
+                  <Download className="h-4 w-4" />
+                  Download JPG
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isGlobalReportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-4" style={{ background: 'rgba(0,0,0,0.2)' }}>
+          <div className="flex max-h-[94vh] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            {/* Header */}
+            <div className="flex flex-shrink-0 items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Generate Report</h2>
+                <p className="mt-0.5 text-sm text-slate-400">Preview and download daily report across all locations.</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseGlobalReportModal}
+                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Date filter */}
+            <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 px-5 py-3">
+              <label className="text-sm font-semibold text-slate-600 whitespace-nowrap">Sales Date</label>
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  value={globalReportDate ? formatSalesDate(globalReportDate) : ''}
+                  readOnly
+                  placeholder="dddd, dd mmmm yyyy"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800"
+                />
+                <DatePicker
+                  selected={parseDateInputValue(globalReportDate)}
+                  onChange={handleGlobalReportDateChange}
+                  dateFormat="yyyy-MM-dd"
+                  customInput={<CalendarTriggerButton />}
+                  calendarClassName="office-datepicker"
+                  popperClassName="office-datepicker-popper z-[90]"
+                  popperPlacement="bottom-end"
+                  showPopperArrow={false}
+                  onKeyDown={(event) => event.preventDefault()}
+                />
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {(isGlobalReportSalesLoading || isGlobalReportSalesFetching || isGlobalReportDetailLoading || isGlobalReportDetailFetching) ? (
+                <div className="flex items-center justify-center py-12 text-sm text-slate-400">Loading report data…</div>
+              ) : !globalReportDate ? (
+                <div className="flex items-center justify-center py-12 text-sm text-slate-400">Select a date to generate the report.</div>
+              ) : (globalReportSalesRecords ?? []).length === 0 ? (
+                <div className="flex items-center justify-center py-12 text-sm text-slate-400">No sales data found for this date.</div>
+              ) : (
+                <div id="global-sales-receipt-content" className="rounded-xl border border-slate-200 bg-white p-5 text-slate-900">
+                  {/* Receipt header */}
+                  <div className="border-b border-dashed border-slate-300 pb-3 text-center">
+                    <h3 className="text-base font-bold text-slate-900">Penjualan Aneka Kue 339</h3>
+                    <p className="mt-0.5 text-sm font-medium text-slate-600">{formatReceiptDateTitle(globalReportDate)}</p>
+                  </div>
+
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full border-collapse text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200">
+                          <th className="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Stok</th>
+                          <th className="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Produk</th>
+                          <th className="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Terjual</th>
+                          <th className="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Perhitungan</th>
+                          <th className="py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {globalReportReceiptItems.map((item) => {
+                          const leftovers = item.leftovers ?? 0;
+                          const isSoldOut = leftovers <= 0;
+                          const leftoverText = leftovers > 0 ? `(sisa ${leftovers})` : '(habis)';
+                          const uniqueBasePrices = Array.from(new Set(item.item_base_prices));
+                          const remarks = uniqueBasePrices.length === 1
+                            ? `${item.calculation_quantity} x ${new Intl.NumberFormat('id-ID').format(uniqueBasePrices[0] ?? 0)}`
+                            : `${item.calculation_quantity} x campuran`;
+
+                          return (
+                            <tr key={item.id} className="border-b border-slate-100">
+                              <td className="py-2 pr-3 text-sm text-slate-700">{item.stocks}</td>
+                              <td className="py-2 pr-3 text-sm font-medium text-slate-800">{item.item_name}</td>
+                              <td className={`py-2 pr-3 text-sm font-semibold ${isSoldOut ? 'text-emerald-600' : 'text-rose-500'}`}>{leftoverText}</td>
+                              <td className="py-2 pr-3 text-sm text-slate-500">{remarks}</td>
+                              <td className="py-2 text-right text-sm font-medium text-slate-800">{formatCurrency(item.total_cost)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="mt-4 border-t border-dashed border-slate-300 pt-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold text-slate-800">Total</span>
+                      <span className="text-base font-bold text-slate-900">{formatCurrency(globalReportGrandTotal)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            {!isGlobalReportSalesLoading && !isGlobalReportSalesFetching && !isGlobalReportDetailLoading && !isGlobalReportDetailFetching && (globalReportSalesRecords ?? []).length > 0 && (
+              <div className="flex-shrink-0 border-t border-slate-100 px-5 py-4">
+                <button
+                  type="button"
+                  onClick={() => { void handleDownloadGlobalReceipt(); }}
                   className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-700"
                 >
                   <Download className="h-4 w-4" />
